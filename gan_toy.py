@@ -32,7 +32,8 @@ LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
 CRITIC_ITERS = 5  # How many critic iterations per generator iteration
 BATCH_SIZE = 256  # Batch size
 ITERS = 100000  # how many generator iterations to train for
-use_cuda = True
+# use_cuda = True
+use_cuda = False
 
 # ==================Definition Start======================
 
@@ -136,9 +137,9 @@ def inf_train_gen():
     if DATASET == '25gaussians':
 
         dataset = []
-        for i in xrange(100000 / 25):
-            for x in xrange(-2, 3):
-                for y in xrange(-2, 3):
+        for i in range(100000 / 25):
+            for x in range(-2, 3):
+                for y in range(-2, 3):
                     point = np.random.randn(2) * 0.05
                     point[0] += 2 * x
                     point[1] += 2 * y
@@ -147,7 +148,7 @@ def inf_train_gen():
         np.random.shuffle(dataset)
         dataset /= 2.828  # stdev
         while True:
-            for i in xrange(len(dataset) / BATCH_SIZE):
+            for i in range(len(dataset) / BATCH_SIZE):
                 yield dataset[i * BATCH_SIZE:(i + 1) * BATCH_SIZE]
 
     elif DATASET == 'swissroll':
@@ -177,7 +178,7 @@ def inf_train_gen():
         centers = [(scale * x, scale * y) for x, y in centers]
         while True:
             dataset = []
-            for i in xrange(BATCH_SIZE):
+            for i in range(BATCH_SIZE):
                 point = np.random.randn(2) * .02
                 center = random.choice(centers)
                 point[0] += center[0]
@@ -233,15 +234,16 @@ if use_cuda:
 
 data = inf_train_gen()
 
-for iteration in xrange(ITERS):
+for iteration in range(ITERS):
     ############################
     # (1) Update D network
     ###########################
     for p in netD.parameters():  # reset requires_grad
         p.requires_grad = True  # they are set to False below in netG update
 
-    for iter_d in xrange(CRITIC_ITERS):
-        _data = data.next()
+    for iter_d in range(CRITIC_ITERS):
+        # _data = data.next()
+        _data = next(data)
         real_data = torch.Tensor(_data)
         if use_cuda:
             real_data = real_data.cuda()
@@ -281,7 +283,8 @@ for iteration in xrange(ITERS):
             p.requires_grad = False  # to avoid computation
         netG.zero_grad()
 
-        _data = data.next()
+        # _data = data.next()
+        _data = next(data)
         real_data = torch.Tensor(_data)
         if use_cuda:
             real_data = real_data.cuda()

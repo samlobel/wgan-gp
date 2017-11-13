@@ -3,7 +3,8 @@ import numpy as np
 import os
 import urllib
 import gzip
-import cPickle as pickle
+# import cPickle as pickle
+import pickle
 
 def unpickle(file):
     fo = open(file, 'rb')
@@ -29,6 +30,6 @@ def cifar_generator(filenames, batch_size, data_dir):
 
 def load(batch_size, data_dir):
     return (
-        cifar_generator(['data_batch_1','data_batch_2','data_batch_3','data_batch_4','data_batch_5'], batch_size, data_dir), 
+        cifar_generator(['data_batch_1','data_batch_2','data_batch_3','data_batch_4','data_batch_5'], batch_size, data_dir),
         cifar_generator(['test_batch'], batch_size, data_dir)
     )
