@@ -30,7 +30,7 @@ def Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=True, mask_
             mask_type, mask_n_channels = mask_type
 
             mask = np.ones(
-                (filter_size, filter_size, input_dim, output_dim), 
+                (filter_size, filter_size, input_dim, output_dim),
                 dtype='float32'
             )
             center = filter_size // 2
@@ -82,7 +82,7 @@ def Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=True, mask_
                 (filter_size, filter_size, input_dim, output_dim)
             )
 
-        # print "WARNING IGNORING GAIN"
+        # print("WARNING IGNORING GAIN")
         filter_values *= gain
 
         filters = lib.param(name+'.Filters', filter_values)
@@ -104,8 +104,8 @@ def Conv2D(name, input_dim, output_dim, filter_size, inputs, he_init=True, mask_
                 filters = filters * mask
 
         result = tf.nn.conv2d(
-            input=inputs, 
-            filter=filters, 
+            input=inputs,
+            filter=filters,
             strides=[1, 1, stride, stride],
             padding='SAME',
             data_format='NCHW'

@@ -62,16 +62,16 @@ class Generator(nn.Module):
     def forward(self, input):
         output = self.preprocess(input)
         output = output.view(-1, 4*DIM, 4, 4)
-        #print output.size()
+        #print(output.size())
         output = self.block1(output)
-        #print output.size()
+        #print(output.size())
         output = output[:, :, :7, :7]
-        #print output.size()
+        #print(output.size())
         output = self.block2(output)
-        #print output.size()
+        #print(output.size())
         output = self.deconv_out(output)
         output = self.sigmoid(output)
-        #print output.size()
+        #print(output.size())
         return output.view(-1, OUTPUT_DIM)
 
 class Discriminator(nn.Module):
@@ -110,7 +110,7 @@ def generate_image(frame, netG):
     noisev = autograd.Variable(noise, volatile=True)
     samples = netG(noisev)
     samples = samples.view(BATCH_SIZE, 28, 28)
-    # print samples.size()
+    # print(samples.size())
 
     samples = samples.cpu().data.numpy()
 
@@ -127,7 +127,7 @@ def inf_train_gen():
             yield images
 
 def calc_gradient_penalty(netD, real_data, fake_data):
-    #print real_data.size()
+    #print(real_data.size())
     alpha = torch.rand(BATCH_SIZE, 1)
     alpha = alpha.expand(real_data.size())
     alpha = alpha.cuda(gpu) if use_cuda else alpha
@@ -152,8 +152,8 @@ def calc_gradient_penalty(netD, real_data, fake_data):
 
 netG = Generator()
 netD = Discriminator()
-print netG
-print netD
+print(netG)
+print(netD)
 
 if use_cuda:
     netD = netD.cuda(gpu)
@@ -190,7 +190,7 @@ for iteration in xrange(ITERS):
         # train with real
         D_real = netD(real_data_v)
         D_real = D_real.mean()
-        # print D_real
+        # print(D_real)
         D_real.backward(mone)
 
         # train with fake

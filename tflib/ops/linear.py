@@ -22,9 +22,9 @@ def unset_weights_stdev():
     _weights_stdev = None
 
 def Linear(
-        name, 
-        input_dim, 
-        output_dim, 
+        name,
+        input_dim,
+        output_dim,
         inputs,
         biases=True,
         initialization=None,
@@ -75,7 +75,7 @@ def Linear(
 
         elif initialization == 'orthogonal' or \
             (initialization == None and input_dim == output_dim):
-            
+
             # From lasagne
             def sample(shape):
                 if len(shape) < 2:
@@ -90,9 +90,9 @@ def Linear(
                 q = q.reshape(shape)
                 return q.astype('float32')
             weight_values = sample((input_dim, output_dim))
-        
+
         elif initialization[0] == 'uniform':
-        
+
             weight_values = np.random.uniform(
                 low=-initialization[1],
                 high=initialization[1],
@@ -126,7 +126,7 @@ def Linear(
                 weight = weight * (target_norms / norms)
 
         # if 'Discriminator' in name:
-        #     print "WARNING weight constraint on {}".format(name)
+        #     print("WARNING weight constraint on {}".format(name))
         #     weight = tf.nn.softsign(10.*weight)*.1
 
         if inputs.get_shape().ndims == 2:

@@ -1,6 +1,8 @@
 # WGAN-GP
 An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 
+# Sam's contribution: Making it Python-3 compatible.
+
 # Prerequisites
 
 Python, NumPy, SciPy, Matplotlib
@@ -69,15 +71,15 @@ A recent NVIDIA GPU
   >
   > In is a " nored by of the ot can
   >
-  > The onteon I dees this pirder , 
+  > The onteon I dees this pirder ,
   >
-  > It is Brobes aoracy of " medurn 
+  > It is Brobes aoracy of " medurn
   >
   > Rame he reaariod to thim atreast
   >
   > The stinl who herth of the not t
   >
-  > The witl is f ont UAy Y nalence 
+  > The witl is f ont UAy Y nalence
   >
   > It a over , tose sho Leloch Cumm
 

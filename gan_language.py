@@ -166,7 +166,7 @@ def generate_samples(netG):
     noisev = autograd.Variable(noise, volatile=True)
     samples = netG(noisev)
     samples = samples.view(-1, SEQ_LEN, len(charmap))
-    # print samples.size()
+    # print(samples.size())
 
     samples = samples.cpu().data.numpy()
 
@@ -183,8 +183,8 @@ def generate_samples(netG):
 
 netG = Generator()
 netD = Discriminator()
-print netG
-print netD
+print(netG)
+print(netD)
 
 if use_cuda:
     netD = netD.cuda(gpu)
@@ -207,7 +207,7 @@ data = inf_train_gen()
 true_char_ngram_lms = [language_helpers.NgramLanguageModel(i+1, lines[10*BATCH_SIZE:], tokenize=False) for i in xrange(4)]
 validation_char_ngram_lms = [language_helpers.NgramLanguageModel(i+1, lines[:10*BATCH_SIZE], tokenize=False) for i in xrange(4)]
 for i in xrange(4):
-    print "validation set JSD for n={}: {}".format(i+1, true_char_ngram_lms[i].js_with(validation_char_ngram_lms[i]))
+    print("validation set JSD for n={}: {}".format(i+1, true_char_ngram_lms[i].js_with(validation_char_ngram_lms[i])))
 true_char_ngram_lms = [language_helpers.NgramLanguageModel(i+1, lines, tokenize=False) for i in xrange(4)]
 
 for iteration in xrange(ITERS):
@@ -221,7 +221,7 @@ for iteration in xrange(ITERS):
     for iter_d in xrange(CRITIC_ITERS):
         _data = data.next()
         data_one_hot = one_hot.transform(_data.reshape(-1, 1)).toarray().reshape(BATCH_SIZE, -1, len(charmap))
-        #print data_one_hot.shape
+        print(data_one_hot.shape)
         real_data = torch.Tensor(data_one_hot)
         if use_cuda:
             real_data = real_data.cuda(gpu)
@@ -232,7 +232,7 @@ for iteration in xrange(ITERS):
         # train with real
         D_real = netD(real_data_v)
         D_real = D_real.mean()
-        # print D_real
+        # print(D_real)
         # TODO: Waiting for the bug fix from pytorch
         D_real.backward(mone)
 

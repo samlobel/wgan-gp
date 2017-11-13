@@ -94,8 +94,8 @@ class Discriminator(nn.Module):
 
 netG = Generator()
 netD = Discriminator()
-print netG
-print netD
+print(netG)
+print(netD)
 
 use_cuda = torch.cuda.is_available()
 if use_cuda:
@@ -114,7 +114,7 @@ optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
 
 def calc_gradient_penalty(netD, real_data, fake_data):
-    # print "real_data: ", real_data.size(), fake_data.size()
+    # print("real_data: {} {}".format(real_data.size(), fake_data.size()))
     alpha = torch.rand(BATCH_SIZE, 1)
     alpha = alpha.expand(BATCH_SIZE, real_data.nelement()/BATCH_SIZE).contiguous().view(BATCH_SIZE, 3, 32, 32)
     alpha = alpha.cuda(gpu) if use_cuda else alpha
@@ -218,7 +218,7 @@ for iteration in xrange(ITERS):
         gradient_penalty = calc_gradient_penalty(netD, real_data_v.data, fake.data)
         gradient_penalty.backward()
 
-        # print "gradien_penalty: ", gradient_penalty
+        # print("gradien_penalty: {}".format(gradient_penalty))
 
         D_cost = D_fake - D_real + gradient_penalty
         Wasserstein_D = D_real - D_fake
