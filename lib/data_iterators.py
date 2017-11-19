@@ -23,7 +23,9 @@ def eight_gaussians(BATCH_SIZE, radius=2.0, stddev=0.02, num_batches=0):
             point = np.random.randn(2) * stddev #The 2 is the dimension...
             center = random.choice(centers)
             dataset.append(center + point)
-        return np.asarray(dataset)
+        dataset = np.asarray(dataset)
+        dataset = dataset / 1.414 # stddev
+        return dataset
 
     if not num_batches:
         while True:

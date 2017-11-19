@@ -51,18 +51,15 @@ ONE = torch.FloatTensor([1])
 NEG_ONE = ONE * -1
 
 
-PIC_DIR='sam_tmp/8gaussians'
+PIC_DIR='sam_tmp/8gaussians_NO_NM'
 # ==================Definition Start======================
 
 # Needs something to generate data from a uniform distribution...
 
-class ModulePlus(nn.Module):
-    def set_requires_grad(self, val=False):
-        for p in self.parameters():
-            p.requires_grad = val
+# class ModulePlus(nn.Module):
 
 
-class Generator(ModulePlus):
+class Generator(nn.Module):
 
     def __init__(self):
         super(Generator, self).__init__()
@@ -85,8 +82,13 @@ class Generator(ModulePlus):
             output = self.main(noise)
             return output
 
+    def set_requires_grad(self, val=False):
+        for p in self.parameters():
+            p.requires_grad = val
 
-class Discriminator(ModulePlus):
+
+
+class Discriminator(nn.Module):
 
     def __init__(self):
         super(Discriminator, self).__init__()
@@ -106,32 +108,9 @@ class Discriminator(ModulePlus):
         output = self.main(inputs)
         return output.view(-1)
 
-class NoiseMorpher(ModulePlus):
-    # Small point: I think that actually, we should try and use output + inputs. That's the
-    # Res way.
-    def __init__(self):
-        super().__init__()
-
-        main = nn.Sequential(
-            nn.Linear(2, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 2)
-        )
-
-        self.main = main
-
-    def forward(self, inputs):
-        output = self.main(inputs)
-        # import ipdb; ipdb.set_trace()
-        # print("noise mean: {}\nnoise stddev: {}".format(torch.mean(output, 0), torch.std(output, 0)))
-        distorted_input = output + inputs
-
-        # print("input mean: {}  stddev: {}".format(inputs.mean(dim=0).data.numpy(), inputs.std(dim=0).data.numpy()))
-        # print("output mean: {}  stddev: {}".format(output.mean(dim=0).data.numpy(), output.std(dim=0).data.numpy()))
-
-        return distorted_input
-        return output + inputs # That way, if output became 0, you'd get your inputs back...
-
+    def set_requires_grad(self, val=False):
+        for p in self.parameters():
+            p.requires_grad = val
 
 
 
@@ -168,93 +147,41 @@ def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass
     gradient_penalty = calc_gradient_penalty(d_net, real_data_v.data, fake_data_v.data)
     scaled_grad_penalty = LAMBDA * gradient_penalty
     scaled_grad_penalty.backward(ONE) #That makes it minimize!
-
-
-    if grad_plotter:
-        grad_plotter.add_point(gradient_penalty.data.numpy()[0], 'Grad Distance from 1 or -1')
-
-    if wass_plotter:
-        d_wasserstein = d_real - d_fake
-        wass_plotter.add_point(d_wasserstein.data.numpy()[0], "Wasserstein Loss")
-
-    if d_cost_plotter:
-        d_total_cost = d_fake - d_real + gradient_penalty
-        d_cost_plotter.add_point(d_total_cost.data.numpy()[0], "Total D Cost")
-
+    # scaled_grad_penalty.backward() #His didn't have a one or a -1 in it... maybe that's it?
     d_optimizer.step()
 
 
-def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
+    if grad_plotter:
+        grad_plotter.add_point(gradient_penalty.data.numpy(), 'Grad Distance from 1 or -1')
+
+    if wass_plotter:
+        d_wasserstein = d_real - d_fake
+        wass_plotter.add_point(d_wasserstein.data.numpy(), "Wasserstein Loss")
+
+    if d_cost_plotter:
+        d_total_cost = d_fake - d_real + gradient_penalty
+        d_cost_plotter.add_point(d_total_cost.data.numpy(), "Total D Cost")
+
+
+
+def train_generator(g_net, d_net, g_optimizer, batch_size):
     # NOTE: I could include nm_net optionally...
-    d_net.set_requires_grad(False)
+    # NOTE: I do this differently than him. Because I think I need d_net's grads...
+    d_net.set_requires_grad(True)
     g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(False) # Although it's part of the system, we're not optimizing it here.
     g_net.zero_grad()
+    d_net.zero_grad()
 
     noisev = create_generator_noise(batch_size)
-    noise_morphed = nm_net(noisev)
 
-    fake_data = g_net(noise_morphed)
+    fake_data = g_net(noisev)
     d_fake = d_net(fake_data).mean()
     d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.
 
-    #TODO: Log this
-    # g_cost = -d_fake
-
     g_optimizer.step()
 
-
-def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
-    """
-    Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
-    NM tries to pick noise vectors that are BAD. A high d_fake means that the disc is doing badly.
-    NM tries to make a low d_fake. Meaning that it minimizes it. Meaning that it should
-    backwards from ONE, not from NEG_ONE.
-
-    Meaning it should make f(real) big and f(fake) small.
-    Meaning it should backwards from real with a NEG and backwards from fake with a POS.
-    """
-
-    d_net.set_requires_grad(False)
-    g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(True)
-    g_net.zero_grad()
-    nm_net.zero_grad()
-
-    noisev = create_generator_noise(batch_size)
-    noise_morphed = nm_net(noisev)
-
-    fake_from_morphed = g_net(noisev)
-    d_morphed = d_net(fake_from_morphed).mean()
-    d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
-                            # Makes the inputs to the g_net give smaller D vals.
-                            # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
-    nm_optimizer.step()
-
-
-
-def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, real_vs_noise_plotter, real_noise_diff_plotter):
-    d_net.set_requires_grad(False)
-    g_net.set_requires_grad(False)
-    nm_net.set_requires_grad(False)
-
-    noisev = create_generator_noise(batch_size, allow_gradient=False)
-    noise_morphed = nm_net(noisev)
-    fake_from_noise = g_net(noisev)
-    fake_from_morphed = g_net(noise_morphed)
-
-    d_noise = d_net(fake_from_noise)
-    # mean, stddev = d_noise.mean(), d_noise.std()
-    # print("d_noise mean: {}   stddev: {}".format(mean, stddev))
-    d_noise = d_noise.mean()# .mean()
-    d_morphed = d_net(fake_from_morphed).mean()
-
-    diff = d_noise - d_morphed
-
-    real_vs_noise_plotter.add_point(d_noise.data.numpy()[0], 'Straight Noise')
-    real_vs_noise_plotter.add_point(d_morphed.data.numpy()[0], 'Transformed Noise')
-
-    real_noise_diff_plotter.add_point(diff.data.numpy()[0], "Real Vs Morphed Noise Disc Cost Diff")
+    #TODO: Log this
+    # g_cost = -d_fake
 
 
 
@@ -278,17 +205,13 @@ grad_plotter = MultiLinePlotter(filename_in_picdir('grad_penalty.jpg'))
 
 netG = Generator()
 netD = Discriminator()
-netNM = NoiseMorpher()
 netD.apply(weights_init)
 netG.apply(weights_init)
-netNM.apply(weights_init)
 print(netG)
 print(netD)
-print(netNM)
 
 optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
-optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
 
 
 # data = inf_train_gen()
@@ -298,11 +221,9 @@ for iteration in range(ITERS):
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
         train_discriminator(netG, netD, _data, optimizerD, grad_plotter=grad_plotter, wass_plotter=wasserstein_plotter, d_cost_plotter=d_cost_plotter)
-        train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
 
-    train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
-    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, real_vs_noise_plotter, real_noise_diff_plotter)
+    train_generator(netG, netD, optimizerG, BATCH_SIZE)
 
     if (iteration + 1) % 10 == 0:
         print("Plotting effect of transforming noise.")
