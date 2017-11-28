@@ -85,6 +85,7 @@ class Discriminator(nn.Module):
 # custom weights initialization called on netG and netD
 def weights_init(m):
     classname = m.__class__.__name__
+    print("Classname: {}".format(classname))
     if classname.find('Linear') != -1:
         m.weight.data.normal_(0.0, 0.02)
         m.bias.data.fill_(0)
@@ -238,10 +239,12 @@ for iteration in range(ITERS):
     ############################
     # (1) Update D network
     ###########################
+    # print("ITER {}".format(iteration))
     for p in netD.parameters():  # reset requires_grad
         p.requires_grad = True  # they are set to False below in netG update
 
     for iter_d in range(CRITIC_ITERS):
+        # print("CRITIC ITER: {}".format(iter_d))
         # _data = data.next()
         _data = next(data)
         real_data = torch.Tensor(_data)
@@ -302,11 +305,18 @@ for iteration in range(ITERS):
         optimizerG.step()
 
     # Write logs and save samples
+
+    #SAM GRAPH:
+    lib.plot.plot('tmp/' + DATASET + '/' + 'grad penalty', gradient_penalty.cpu().data.numpy())
+    #END SAM
+
     lib.plot.plot('tmp/' + DATASET + '/' + 'disc cost', D_cost.cpu().data.numpy())
     lib.plot.plot('tmp/' + DATASET + '/' + 'wasserstein distance', Wasserstein_D.cpu().data.numpy())
     if not FIXED_GENERATOR:
         lib.plot.plot('tmp/' + DATASET + '/' + 'gen cost', G_cost.cpu().data.numpy())
-    if iteration % 100 == 99:
+    # if iteration % 100 == 99:
+    if (iteration + 1) % 100 == 0:
+        print("plotting")
         lib.plot.flush()
         generate_image(_data)
     lib.plot.tick()

@@ -40,6 +40,7 @@ FIXED_GENERATOR = False  # whether to hold the generator fixed at real data plus
 # Gaussian noise, as in the plots in the paper
 LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
 # LAMBDA = 0.0 # SAM!
+# LAMBDA = 1.0 # SAM! Interestingly, this makes scaled_grad_penalty go down. I guess it hugs it closer.
 
 
 CRITIC_ITERS = 5  # How many critic iterations per generator iteration
@@ -115,6 +116,8 @@ class NoiseMorpher(ModulePlus):
         main = nn.Sequential(
             nn.Linear(2, 50),
             nn.ReLU(True),
+            nn.Linear(50, 50),
+            nn.ReLU(True),
             nn.Linear(50, 2)
         )
 
@@ -169,16 +172,15 @@ def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass
     scaled_grad_penalty = LAMBDA * gradient_penalty
     scaled_grad_penalty.backward(ONE) #That makes it minimize!
 
-
     if grad_plotter:
-        grad_plotter.add_point(gradient_penalty.data.numpy()[0], 'Grad Distance from 1 or -1')
+        grad_plotter.add_point(scaled_grad_penalty.data.numpy()[0], 'Grad Distance from 1 or -1')
 
     if wass_plotter:
         d_wasserstein = d_real - d_fake
         wass_plotter.add_point(d_wasserstein.data.numpy()[0], "Wasserstein Loss")
 
     if d_cost_plotter:
-        d_total_cost = d_fake - d_real + gradient_penalty
+        d_total_cost = d_fake - d_real + scaled_grad_penalty
         d_cost_plotter.add_point(d_total_cost.data.numpy()[0], "Total D Cost")
 
     d_optimizer.step()
@@ -226,9 +228,10 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
 
     fake_from_morphed = g_net(noisev)
     d_morphed = d_net(fake_from_morphed).mean()
-    d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
-                            # Makes the inputs to the g_net give smaller D vals.
-                            # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
+    # d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
+    #                         # Makes the inputs to the g_net give smaller D vals.
+    #                         # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
+    d_morphed.backward(NEG_ONE) # PRETTY POSITIVE THIS IS WRONG. SHOULD BE OPPOSITE OF IF TRAINING Gen.
     nm_optimizer.step()
 
 
@@ -294,6 +297,32 @@ optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight
 # data = inf_train_gen()
 data = eight_gaussians(BATCH_SIZE)
 
+def plot_all():
+    print("Plotting effect of transforming noise.")
+    real_vs_noise_plotter.graph_points()
+    real_noise_diff_plotter.graph_points()
+    grad_plotter.graph_points()
+    wasserstein_plotter.graph_points()
+    d_cost_plotter.graph_points()
+
+
+
+# How about this as a strategy: I train the discriminator for a bit, then I train the generator
+# to BEAT IT! Then, I train the NM to make the generator look foolish. And when I'm training one,
+# I'm not training the others...
+
+
+print("First, just doing DISC")
+for iteration in range(250):
+    print(iteration)
+    _data = next(data)
+    train_discriminator(netG, netD, _data, optimizerD, grad_plotter=grad_plotter, wass_plotter=wasserstein_plotter, d_cost_plotter=d_cost_plotter)
+    train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
+    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, real_vs_noise_plotter, real_noise_diff_plotter)
+    if (iteration + 1) %50 == 0:
+        plot_all()
+
+
 for iteration in range(ITERS):
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
@@ -305,9 +334,10 @@ for iteration in range(ITERS):
     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, real_vs_noise_plotter, real_noise_diff_plotter)
 
     if (iteration + 1) % 10 == 0:
-        print("Plotting effect of transforming noise.")
-        real_vs_noise_plotter.graph_points()
-        real_noise_diff_plotter.graph_points()
-        grad_plotter.graph_points()
-        wasserstein_plotter.graph_points()
-        d_cost_plotter.graph_points()
+        plot_all()
+        # print("Plotting effect of transforming noise.")
+        # real_vs_noise_plotter.graph_points()
+        # real_noise_diff_plotter.graph_points()
+        # grad_plotter.graph_points()
+        # wasserstein_plotter.graph_points()
+        # d_cost_plotter.graph_points()

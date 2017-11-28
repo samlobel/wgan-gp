@@ -152,14 +152,14 @@ def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass
 
 
     if grad_plotter:
-        grad_plotter.add_point(gradient_penalty.data.numpy(), 'Grad Distance from 1 or -1')
+        grad_plotter.add_point(scaled_grad_penalty.data.numpy(), 'Grad Distance from 1 or -1')
 
     if wass_plotter:
         d_wasserstein = d_real - d_fake
         wass_plotter.add_point(d_wasserstein.data.numpy(), "Wasserstein Loss")
 
     if d_cost_plotter:
-        d_total_cost = d_fake - d_real + gradient_penalty
+        d_total_cost = d_fake - d_real + scaled_grad_penalty
         d_cost_plotter.add_point(d_total_cost.data.numpy(), "Total D Cost")
 
 
@@ -225,7 +225,7 @@ for iteration in range(ITERS):
 
     train_generator(netG, netD, optimizerG, BATCH_SIZE)
 
-    if (iteration + 1) % 10 == 0:
+    if (iteration + 1) % 100 == 0:
         print("Plotting effect of transforming noise.")
         real_vs_noise_plotter.graph_points()
         real_noise_diff_plotter.graph_points()

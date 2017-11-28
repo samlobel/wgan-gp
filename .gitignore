@@ -2,3 +2,7 @@
 .ftpconfig
 *.orig
 tmp
+*.pkl
+sam_tmp/*
+__pycache__
+this.jpg
