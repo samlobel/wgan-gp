@@ -120,7 +120,7 @@ def create_generator_noise(batch_size, allow_gradient=True):
     return noisev
 
 
-def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass_plotter=None, d_cost_plotter=None):
+def train_discriminator(g_net, d_net, data, d_optimizer, plotter=plotter):grad_plotter=None, wass_plotter=None, d_cost_plotter=None):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
     Meaning it should make f(real) big and f(fake) small.

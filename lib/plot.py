@@ -6,15 +6,40 @@ import matplotlib.pyplot as plt
 
 import collections
 import time
+import os
+
+class MultiGraphPlotter(object):
+    def __init__(self, basedir, extension=".jpg"):
+        self.basedir = basedir
+        self.graph_dict = {}
+        self.extension = extension
+
+
+    def add_point(self, graph_name=None, value=None, bin_name=None):
+        if None in [graph_name, value, bin_name]:
+            raise Exception("Argument not provided to add point in MultiGraphPlotter")
+
+        if graph_name not in self.graph_dict:
+            self.graph_dict[graph_name] = MultiLinePlotter(graph_name, self.extension)
+
+        self.graph_dict[graph_name].add_point(value=value, bin_name=bin_name)
+
+    def graph_all(self):
+        for name, plotter in self.graph_dict.items():
+            print("Graphing Name {}".format(name))
+            plotter.graph_points(location=os.path.join(self.basedir, name))
 
 
 class MultiLinePlotter(object):
-    def __init__(self, location):
+    def __init__(self, location, extension=".jpg"):
         super().__init__()
         self.location = location
         self.point_tracker = collections.defaultdict(list)
+        self.extension = extension
 
-    def add_point(self, value, bin_name):
+    def add_point(self, value=None, bin_name=None):
+        if None in [value, bin_name]:
+            raise Exception("Argument not provided to add_point in MultiLinePlotter")
         self.point_tracker[bin_name].append(value)
 
     def graph_points(self, location=None):
@@ -26,7 +51,9 @@ class MultiLinePlotter(object):
             line = plt.plot(x_vals, y_vals, label=key)
 
         plt.legend()
-        plt.savefig(location.replace(' ', '_'))
+        true_loc = location.replace(' ', '_') + self.extension
+        print("Saving to {}".format(true_loc))
+        plt.savefig(true_loc)
 
 
 class BasicPlotter(object):

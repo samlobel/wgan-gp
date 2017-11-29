@@ -19,7 +19,9 @@ import sklearn.datasets
 # import tflib as lib
 # import tflib.plot
 from lib.utils import calc_gradient_penalty, weights_init
-from lib.plot import MultiLinePlotter
+# from lib.plot import MultiLinePlotter
+from lib.plot import MultiGraphPlotter
+
 from lib.data_iterators import eight_gaussians
 
 
@@ -144,7 +146,7 @@ def create_generator_noise(batch_size, allow_gradient=True):
     return noisev
 
 
-def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass_plotter=None, d_cost_plotter=None):
+def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
     Meaning it should make f(real) big and f(fake) small.
@@ -172,16 +174,12 @@ def train_discriminator(g_net, d_net, data, d_optimizer, grad_plotter=None, wass
     scaled_grad_penalty = LAMBDA * gradient_penalty
     scaled_grad_penalty.backward(ONE) #That makes it minimize!
 
-    if grad_plotter:
-        grad_plotter.add_point(scaled_grad_penalty.data.numpy()[0], 'Grad Distance from 1 or -1')
+    d_wasserstein = d_real - d_fake
+    d_total_cost = d_fake - d_real + scaled_grad_penalty
 
-    if wass_plotter:
-        d_wasserstein = d_real - d_fake
-        wass_plotter.add_point(d_wasserstein.data.numpy()[0], "Wasserstein Loss")
-
-    if d_cost_plotter:
-        d_total_cost = d_fake - d_real + scaled_grad_penalty
-        d_cost_plotter.add_point(d_total_cost.data.numpy()[0], "Total D Cost")
+    plotter.add_point(graph_name="Grad Penalty", value=scaled_grad_penalty.data.numpy()[0], bin_name="Grad Distance from 1 or -1")
+    plotter.add_point(graph_name="Wasserstein Distance", value=d_wasserstein.data.numpy()[0], bin_name="Wasserstein Distance")
+    plotter.add_point(graph_name="Discriminator Cost", value=d_total_cost.data.numpy()[0], bin_name="Total D Cost")
 
     d_optimizer.step()
 
@@ -236,7 +234,7 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
 
 
 
-def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, real_vs_noise_plotter, real_noise_diff_plotter):
+def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, plotter):
     d_net.set_requires_grad(False)
     g_net.set_requires_grad(False)
     nm_net.set_requires_grad(False)
@@ -254,12 +252,9 @@ def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, real_
 
     diff = d_noise - d_morphed
 
-    real_vs_noise_plotter.add_point(d_noise.data.numpy()[0], 'Straight Noise')
-    real_vs_noise_plotter.add_point(d_morphed.data.numpy()[0], 'Transformed Noise')
-
-    real_noise_diff_plotter.add_point(diff.data.numpy()[0], "Real Vs Morphed Noise Disc Cost Diff")
-
-
+    plotter.add_point(graph_name="real vs noise morphed dist", value=d_noise.data.numpy()[0], bin_name="Straight Noise")
+    plotter.add_point(graph_name="real vs noise morphed dist", value=d_morphed.data.numpy()[0], bin_name="Transformed Noise")
+    plotter.add_point(graph_name="real vs morphed noise disc cost diff", value=diff.data.numpy()[0], bin_name="Cost Diff")
 
 
 def filename_in_picdir(filename):
@@ -267,16 +262,8 @@ def filename_in_picdir(filename):
 
 
 
-
-
-
-
 # ==================Definition End======================
-real_vs_noise_plotter = MultiLinePlotter(filename_in_picdir('real_vs_noise_morphed_dist.jpg'))
-real_noise_diff_plotter = MultiLinePlotter(filename_in_picdir('diff_between_real_and_morphed_noise.jpg'))
-wasserstein_plotter = MultiLinePlotter(filename_in_picdir('wasserstein_distance.jpg'))
-d_cost_plotter = MultiLinePlotter(filename_in_picdir('disc_cost.jpg'))
-grad_plotter = MultiLinePlotter(filename_in_picdir('grad_penalty.jpg'))
+plotter = MultiGraphPlotter(PIC_DIR)
 
 
 netG = Generator()
@@ -298,12 +285,7 @@ optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight
 data = eight_gaussians(BATCH_SIZE)
 
 def plot_all():
-    print("Plotting effect of transforming noise.")
-    real_vs_noise_plotter.graph_points()
-    real_noise_diff_plotter.graph_points()
-    grad_plotter.graph_points()
-    wasserstein_plotter.graph_points()
-    d_cost_plotter.graph_points()
+    plotter.graph_all()
 
 
 
@@ -316,28 +298,22 @@ print("First, just doing DISC")
 for iteration in range(250):
     print(iteration)
     _data = next(data)
-    train_discriminator(netG, netD, _data, optimizerD, grad_plotter=grad_plotter, wass_plotter=wasserstein_plotter, d_cost_plotter=d_cost_plotter)
+    train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
     train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
-    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, real_vs_noise_plotter, real_noise_diff_plotter)
-    if (iteration + 1) %50 == 0:
+    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter)#real_vs_noise_plotter, real_noise_diff_plotter)
+    if (iteration + 1) % 10 == 0:
         plot_all()
 
 
 for iteration in range(ITERS):
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
-        train_discriminator(netG, netD, _data, optimizerD, grad_plotter=grad_plotter, wass_plotter=wasserstein_plotter, d_cost_plotter=d_cost_plotter)
+        train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
         train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
 
     train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
-    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, real_vs_noise_plotter, real_noise_diff_plotter)
+    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
 
     if (iteration + 1) % 10 == 0:
         plot_all()
-        # print("Plotting effect of transforming noise.")
-        # real_vs_noise_plotter.graph_points()
-        # real_noise_diff_plotter.graph_points()
-        # grad_plotter.graph_points()
-        # wasserstein_plotter.graph_points()
-        # d_cost_plotter.graph_points()
