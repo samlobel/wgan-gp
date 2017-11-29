@@ -261,6 +261,31 @@ def filename_in_picdir(filename):
     return os.path.join(PIC_DIR, filename)
 
 
+class ParameterDiffer(object):
+    def __init__(self, network):
+        network_params = []
+        for p in network.parameters():
+            network_params.append(p.data.numpy())
+        self.network_params = network_params
+
+    def get_difference(self, network):
+        total_diff = 0.0
+        for i, p in enumerate(network.parameters()):
+            p_np = p.data.numpy()
+            diff = self.network_params[i] - p_np
+            scalar_diff = np.sum(diff ** 2)
+            total_diff += scalar_diff
+        return total_diff
+
+
+def log_parameter_diff(parameter_differ, nm_net, plotter):
+    total_diff = parameter_differ.get_difference(nm_net)
+    print(total_diff)
+    plotter.add_point(graph_name="Noise Morpher Parameter Distance", value=total_diff, bin_name="Parameter Distance")
+
+
+
+
 
 # ==================Definition End======================
 plotter = MultiGraphPlotter(PIC_DIR)
@@ -275,6 +300,8 @@ netNM.apply(weights_init)
 print(netG)
 print(netD)
 print(netNM)
+
+nm_parameter_differ = ParameterDiffer(netNM)
 
 optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
@@ -294,15 +321,15 @@ def plot_all():
 # I'm not training the others...
 
 
-print("First, just doing DISC")
-for iteration in range(250):
-    print(iteration)
-    _data = next(data)
-    train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
-    train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
-    log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter)#real_vs_noise_plotter, real_noise_diff_plotter)
-    if (iteration + 1) % 10 == 0:
-        plot_all()
+# print("First, just doing DISC")
+# for iteration in range(250):
+#     print(iteration)
+#     _data = next(data)
+#     train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
+#     train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
+#     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter)#real_vs_noise_plotter, real_noise_diff_plotter)
+#     if (iteration + 1) % 10 == 0:
+#         plot_all()
 
 
 for iteration in range(ITERS):
@@ -314,6 +341,7 @@ for iteration in range(ITERS):
 
     train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
-
+    print('log p diff in nm')
+    log_parameter_diff(nm_parameter_differ, netNM, plotter)
     if (iteration + 1) % 10 == 0:
         plot_all()
