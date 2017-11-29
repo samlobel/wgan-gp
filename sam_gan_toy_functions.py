@@ -215,9 +215,11 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
     Meaning it should backwards from real with a NEG and backwards from fake with a POS.
     """
 
-    d_net.set_requires_grad(False)
+    # d_net.set_requires_grad(False)
+    d_net.set_requires_grad(True)
     g_net.set_requires_grad(True)
     nm_net.set_requires_grad(True)
+    d_net.zero_grad()
     g_net.zero_grad()
     nm_net.zero_grad()
 
