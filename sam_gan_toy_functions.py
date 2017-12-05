@@ -26,6 +26,8 @@ import torch.nn.functional as F
 import torch.optim as optim
 torch.manual_seed(1)
 
+from noise_morphers import ComplicatedScalingNoiseMorpher
+
 
 
 
@@ -143,6 +145,46 @@ class BoundedNoiseMorpher(ModulePlus):
         clamped = distorted_input.clamp(min=-self.min_max, max=self.min_max)
         return clamped
 
+class SoftSignNoiseMorpher(ModulePlus):
+    # What I don't like about this is that it makes it harder to get to the edges.
+    # It also initializes to nowhere near the identity, which is a pretty big deal...
+    # What I like is that you won't get buildup on the edges.
+    """This assumes that the input is sampled uniformly from -max to max..."""
+    def __init__(self, min_max=1.0):
+        super().__init__()
+        self.min_max = min_max
+        main = nn.Sequential(
+            nn.Linear(2, 50),
+            nn.ReLU(True),
+            nn.Linear(50, 2),
+            nn.Softsign(),
+        )
+        # main = torch.mul(main, min_max)
+        self.main = main
+
+    def forward(self, inputs):
+        output = self.main(inputs)
+        output = torch.mul(output, self.min_max) #Not perfect but the best I can do...
+        return output
+
+class IdentityNoiseMorpher(ModulePlus):
+    def __init__(self):
+        super().__init__()
+        # main = nn.Sequential(
+        #     nn.Linear(2, 50),
+        #     nn.ReLU(True),
+        #     nn.Linear(50, 2),
+        #     nn.Softsign(),
+        # )
+        # main = torch.mul(main, min_max)
+        # self.main = main
+
+    def forward(self, inputs):
+        return inputs
+        # output = self.main(inputs)
+        # output = torch.mul(output, self.min_max) #Not perfect but the best I can do...
+        # return output
+
 
 def create_generator_noise(batch_size, allow_gradient=True):
     volatile = not allow_gradient
@@ -156,6 +198,9 @@ def create_generator_noise_uniform(batch_size, allow_gradient=True):
     rand_u *= 2 #from -1 to 1
     rand_u *= NOISE_RADIUS
     randv = autograd.Variable(rand_u, volatile=volatile)
+
+    randv_np = randv.data.numpy()
+    print("randv min/max: {}/{}".format(np.amin(randv_np), np.amax(randv_np)))
     return randv
 
 def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
@@ -210,8 +255,12 @@ def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
     nm_net.zero_grad()
 
     noisev = create_generator_noise_uniform(batch_size)
+    noisev_np = noisev.data.numpy()
+    print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
+    print(nm_net)
+    # print("NOISE V: {}".format(noisev.data.numpy()))
     noise_morphed = nm_net(noisev)
-
+    # print("NOISE MORPHED: {}".format(noise_morphed.data.numpy()))
     fake_data = g_net(noise_morphed)
     d_fake = d_net(fake_data).mean()
     d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.
@@ -325,7 +374,9 @@ plotter = MultiGraphPlotter(PIC_DIR)
 netG = Generator()
 netD = Discriminator()
 # netNM = NoiseMorpher()
-netNM = BoundedNoiseMorpher(min_max=NOISE_RADIUS)
+# netNM = BoundedNoiseMorpher(min_max=NOISE_RADIUS)
+# netNM = SoftSignNoiseMorpher(min_max=NOISE_RADIUS)
+netNM = ComplicatedScalingNoiseMorpher()
 netD.apply(weights_init)
 netG.apply(weights_init)
 netNM.apply(weights_init)
@@ -367,16 +418,18 @@ def plot_all():
 NM_ITERS = CRITIC_ITERS * 5
 
 for iteration in range(ITERS):
+    exit("There's an error I can't figure out. The scaling thing keeps getting inputs in the 3 range," +\
+         " when it really should only get inputs in the 1 range. I don't know why.")
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
         train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
 
-    for iter_nm in range(NM_ITERS):
-        train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
+    # for iter_nm in range(NM_ITERS):
+    #     train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
     train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
-    log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
+    # log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
 
     log_parameter_diff_nm(nm_parameter_differ, netNM, plotter)
     log_parameter_diff_d(d_parameter_differ, netG, plotter)
