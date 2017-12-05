@@ -29,7 +29,6 @@ def calc_gradient_penalty(netD, real_data, fake_data, clip=True):
 
 def weights_init(m):
     classname = m.__class__.__name__
-    print("Initializing weights for: {}".format(classname))
     if classname.find('Linear') != -1:
         m.weight.data.normal_(0.0, 0.02)
         m.bias.data.fill_(0)

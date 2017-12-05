@@ -3,7 +3,7 @@ An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 
 # Sam's differences
 * Adding noise-morpher
-* Making Wass-distance pull towards zero everywhere, so that old slopes disappear
+* Making Wass-distance pull towards zero everywhere, so that old slopes disappear. Should I do that on the points I see, or on random inputs?
 * Having noise bounded and uniformly distributed...
 
 ### Important graphs:
@@ -12,3 +12,4 @@ An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 
 ### NOTES:
 * Something to think about is: I've heard multivariate gaussians are really just like the edge of a sphere, versus the inside, because of how much more area is enclosed in the outer part. Does that have any effect here?
+* Any interesting was to make the noise smooth? I think the easiest one and the one I should start with is just clipping.  

@@ -1,7 +1,3 @@
-# Should I just quick and dirty add a morphing layer to the generator? That seems cheap.
-# But, who cares.
-
-
 import os, sys
 
 sys.path.append(os.getcwd())
@@ -16,11 +12,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn.datasets
 
-# import tflib as lib
-# import tflib.plot
 from lib.utils import calc_gradient_penalty, weights_init
-# from lib.plot import MultiLinePlotter
-from lib.plot import MultiGraphPlotter
+from lib.plot import (MultiGraphPlotter, generate_comparison_image,
+                      generate_contour_of_latent_vector_space)
 
 from lib.data_iterators import eight_gaussians
 
@@ -41,23 +35,19 @@ DIM = 512  # Model dimensionality
 FIXED_GENERATOR = False  # whether to hold the generator fixed at real data plus
 # Gaussian noise, as in the plots in the paper
 LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
-# LAMBDA = 0.0 # SAM!
-# LAMBDA = 1.0 # SAM! Interestingly, this makes scaled_grad_penalty go down. I guess it hugs it closer.
 
 
 CRITIC_ITERS = 5  # How many critic iterations per generator iteration
-# CRITIC_ITERS = 15 # SAM's Number
 BATCH_SIZE = 256  # Batch size
 ITERS = 100000  # how many generator iterations to train for
 
 ONE = torch.FloatTensor([1])
 NEG_ONE = ONE * -1
 
+NOISE_RADIUS = 1.0
 
 PIC_DIR='sam_tmp/8gaussians'
 # ==================Definition Start======================
-
-# Needs something to generate data from a uniform distribution...
 
 class ModulePlus(nn.Module):
     def set_requires_grad(self, val=False):
@@ -109,11 +99,14 @@ class Discriminator(ModulePlus):
         output = self.main(inputs)
         return output.view(-1)
 
+
+
 class NoiseMorpher(ModulePlus):
     # Small point: I think that actually, we should try and use output + inputs. That's the
     # Res way.
-    def __init__(self):
+    def __init__(self, min_max=1.0):
         super().__init__()
+        self.min_max = min_max
 
         main = nn.Sequential(
             nn.Linear(2, 50),
@@ -127,17 +120,28 @@ class NoiseMorpher(ModulePlus):
 
     def forward(self, inputs):
         output = self.main(inputs)
-        # import ipdb; ipdb.set_trace()
-        # print("noise mean: {}\nnoise stddev: {}".format(torch.mean(output, 0), torch.std(output, 0)))
         distorted_input = output + inputs
-
-        # print("input mean: {}  stddev: {}".format(inputs.mean(dim=0).data.numpy(), inputs.std(dim=0).data.numpy()))
-        # print("output mean: {}  stddev: {}".format(output.mean(dim=0).data.numpy(), output.std(dim=0).data.numpy()))
-
         return distorted_input
-        return output + inputs # That way, if output became 0, you'd get your inputs back...
 
+class BoundedNoiseMorpher(ModulePlus):
+    """This assumes that the input is sampled uniformly from -max to max..."""
+    def __init__(self, min_max=1.0):
+        super().__init__()
+        self.min_max = min_max
+        print("Using a simpler model than before as well.")
+        main = nn.Sequential(
+            nn.Linear(2, 50),
+            nn.ReLU(True),
+            nn.Linear(50, 2)
+        )
 
+        self.main = main
+
+    def forward(self, inputs):
+        output = self.main(inputs)
+        distorted_input = output + inputs
+        clamped = distorted_input.clamp(min=-self.min_max, max=self.min_max)
+        return clamped
 
 
 def create_generator_noise(batch_size, allow_gradient=True):
@@ -146,22 +150,33 @@ def create_generator_noise(batch_size, allow_gradient=True):
     return noisev
 
 
+def create_generator_noise_uniform(batch_size, allow_gradient=True):
+    volatile = not allow_gradient
+    rand_u = (torch.rand(batch_size, 2) - 0.5) #From -0.5 to 0.5
+    rand_u *= 2 #from -1 to 1
+    rand_u *= NOISE_RADIUS
+    randv = autograd.Variable(rand_u, volatile=volatile)
+    return randv
+
 def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
-    Meaning it should make f(real) big and f(fake) small.
+    Meaning it tries to make f(real) big and f(fake) small.
     Meaning it should backwards from real with a NEG and backwards from fake with a POS.
+
+    F(REAL) SHOULD BE BIG AND F(FAKE) SHOULD BE SMALL!
+
+    No noise though. The noise is for hard-example-mining for the generator, else.
     """
     batch_size = data.shape[0]
-    # print("batch_size is {}".format(batch_size))
-
     # First, we only care about the Discriminator's D
     d_net.set_requires_grad(True)
     g_net.set_requires_grad(False)
+
     d_net.zero_grad()
 
     real_data_v = autograd.Variable(torch.Tensor(data))
-    noisev = create_generator_noise(batch_size, allow_gradient=False) #Do not need gradient for gen.
+    noisev = create_generator_noise_uniform(batch_size, allow_gradient=False) #Do not need gradient for gen.
     fake_data_v = autograd.Variable(g_net(noisev).data)
 
     d_real = d_net(real_data_v).mean()
@@ -186,33 +201,34 @@ def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
 
 def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
     # NOTE: I could include nm_net optionally...
-    d_net.set_requires_grad(False)
+    d_net.set_requires_grad(True) # I think this was my change but not sure...
     g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(False) # Although it's part of the system, we're not optimizing it here.
-    g_net.zero_grad()
+    nm_net.set_requires_grad(True) # Just set them all to true..
 
-    noisev = create_generator_noise(batch_size)
+    g_net.zero_grad()
+    d_net.zero_grad()
+    nm_net.zero_grad()
+
+    noisev = create_generator_noise_uniform(batch_size)
     noise_morphed = nm_net(noisev)
 
     fake_data = g_net(noise_morphed)
     d_fake = d_net(fake_data).mean()
     d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.
 
-    #TODO: Log this
-    # g_cost = -d_fake
-
     g_optimizer.step()
 
 
 def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
     """
-    Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
-    NM tries to pick noise vectors that are BAD. A high d_fake means that the disc is doing badly.
-    NM tries to make a low d_fake. Meaning that it minimizes it. Meaning that it should
-    backwards from ONE, not from NEG_ONE.
+    WassF maximizes F(real) - F(fake), so it makes F(fake) as small as it can.
 
-    Meaning it should make f(real) big and f(fake) small.
-    Meaning it should backwards from real with a NEG and backwards from fake with a POS.
+    The discriminator tries to make F(fake) as small as it can. So, the noise-morpher should
+    try and morph the noise so that D(gen(morph(noise))) is as small as possible.
+    So, D_morphed should be smaller than D_noise if it's working well.
+
+    If I were to log this, I would log D_noise - D_morphed, and try and make it as big as I could.
+
     """
 
     # d_net.set_requires_grad(False)
@@ -223,16 +239,17 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
     g_net.zero_grad()
     nm_net.zero_grad()
 
-    noisev = create_generator_noise(batch_size)
+    noisev = create_generator_noise_uniform(batch_size)
     noise_morphed = nm_net(noisev)
 
-    fake_from_morphed = g_net(noisev)
+    fake_from_morphed = g_net(noise_morphed)
     d_morphed = d_net(fake_from_morphed).mean()
     # d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
     #                         # Makes the inputs to the g_net give smaller D vals.
     #                         # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
     d_morphed.backward(NEG_ONE) # PRETTY POSITIVE THIS IS WRONG. SHOULD BE OPPOSITE OF IF TRAINING Gen.
     nm_optimizer.step()
+
 
 
 
@@ -247,16 +264,22 @@ def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, plott
     fake_from_morphed = g_net(noise_morphed)
 
     d_noise = d_net(fake_from_noise)
-    # mean, stddev = d_noise.mean(), d_noise.std()
-    # print("d_noise mean: {}   stddev: {}".format(mean, stddev))
     d_noise = d_noise.mean()# .mean()
     d_morphed = d_net(fake_from_morphed).mean()
 
-    diff = d_noise - d_morphed
+    diff = d_noise - d_morphed # Is it good or bad if this is positive?
 
     plotter.add_point(graph_name="real vs noise morphed dist", value=d_noise.data.numpy()[0], bin_name="Straight Noise")
     plotter.add_point(graph_name="real vs noise morphed dist", value=d_morphed.data.numpy()[0], bin_name="Transformed Noise")
-    plotter.add_point(graph_name="real vs morphed noise disc cost diff", value=diff.data.numpy()[0], bin_name="Cost Diff")
+    plotter.add_point(graph_name="real vs morphed noise disc cost diff", value=diff.data.numpy()[0], bin_name="Cost Diff (Big means it works)")
+
+
+def log_size_of_morph(nm_net, noise_gen_func, batch_size, plotter):
+    noise = noise_gen_func(batch_size)
+    morphing_amount = nm_net.main(noise).data.numpy()
+    av_morphing_amount = (morphing_amount ** 2).mean()
+    plotter.add_point(graph_name="average distance in each direction NoiseMorpher moves", value=av_morphing_amount, bin_name="Distance Noise Moves In Each Direction")
+
 
 
 def filename_in_picdir(filename):
@@ -267,7 +290,7 @@ class ParameterDiffer(object):
     def __init__(self, network):
         network_params = []
         for p in network.parameters():
-            network_params.append(p.data.numpy())
+            network_params.append(p.data.numpy().copy())
         self.network_params = network_params
 
     def get_difference(self, network):
@@ -280,11 +303,17 @@ class ParameterDiffer(object):
         return total_diff
 
 
-def log_parameter_diff(parameter_differ, nm_net, plotter):
+def log_parameter_diff_nm(parameter_differ, nm_net, plotter):
     total_diff = parameter_differ.get_difference(nm_net)
-    print(total_diff)
     plotter.add_point(graph_name="Noise Morpher Parameter Distance", value=total_diff, bin_name="Parameter Distance")
 
+def log_parameter_diff_g(parameter_differ, g_net, plotter):
+    total_diff = parameter_differ.get_difference(g_net)
+    plotter.add_point(graph_name="Generator Parameter Distance", value=total_diff, bin_name="Parameter Distance")
+
+def log_parameter_diff_d(parameter_differ, d_net, plotter):
+    total_diff = parameter_differ.get_difference(d_net)
+    plotter.add_point(graph_name="Discriminator Parameter Distance", value=total_diff, bin_name="Parameter Distance")
 
 
 
@@ -295,19 +324,22 @@ plotter = MultiGraphPlotter(PIC_DIR)
 
 netG = Generator()
 netD = Discriminator()
-netNM = NoiseMorpher()
+# netNM = NoiseMorpher()
+netNM = BoundedNoiseMorpher(min_max=NOISE_RADIUS)
 netD.apply(weights_init)
 netG.apply(weights_init)
 netNM.apply(weights_init)
 print(netG)
 print(netD)
 print(netNM)
-
+#
+d_parameter_differ = ParameterDiffer(netD)
 nm_parameter_differ = ParameterDiffer(netNM)
+g_parameter_differ = ParameterDiffer(netG)
 
 optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
-optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
+optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9), weight_decay=1e-4)
 
 
 # data = inf_train_gen()
@@ -325,7 +357,6 @@ def plot_all():
 
 # print("First, just doing DISC")
 # for iteration in range(250):
-#     print(iteration)
 #     _data = next(data)
 #     train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
 #     train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
@@ -333,17 +364,29 @@ def plot_all():
 #     if (iteration + 1) % 10 == 0:
 #         plot_all()
 
+NM_ITERS = CRITIC_ITERS * 5
 
 for iteration in range(ITERS):
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
         train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
-        train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
+    for iter_nm in range(NM_ITERS):
+        train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
     train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
-    print('log p diff in nm')
-    log_parameter_diff(nm_parameter_differ, netNM, plotter)
+    log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
+
+    log_parameter_diff_nm(nm_parameter_differ, netNM, plotter)
+    log_parameter_diff_d(d_parameter_differ, netG, plotter)
+    log_parameter_diff_g(g_parameter_differ, netG, plotter)
+
     if (iteration + 1) % 10 == 0:
+        print("plotting iteration {}".format(iteration))
         plot_all()
+        save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
+        generate_comparison_image(_data, netG, netD, save_string, BATCH_SIZE=128, N_POINTS=128, RANGE=3)
+        save_string = os.path.join(PIC_DIR, "latent_space_contours/frame" + str(iteration) + ".jpg")
+        generate_contour_of_latent_vector_space(netG, netD, save_string, BATCH_SIZE=128, N_POINTS=128, RANGE=1)
+        # generate_comparison_image()
