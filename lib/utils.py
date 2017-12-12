@@ -27,6 +27,15 @@ def calc_gradient_penalty(netD, real_data, fake_data, clip=True):
     gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
     return gradient_penalty
 
+def small_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        m.weight.data.normal_(0.0, 0.002)
+        m.bias.data.fill_(0)
+    elif classname.find('BatchNorm') != -1:
+        m.weight.data.normal_(1.0, 0.002)
+        m.bias.data.fill_(0)
+
 def weights_init(m):
     classname = m.__class__.__name__
     if classname.find('Linear') != -1:
@@ -36,6 +45,12 @@ def weights_init(m):
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
 
+
+def xavier_init(m):
+    classname = m.__class__.__name__
+    if classname.find('Linear') != -1:
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0)
 
 # """
 # Since I have torch 2.0, I can use their higher-order grad functionality. I think they did too actually.

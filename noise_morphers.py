@@ -7,6 +7,28 @@ import torch.nn.functional as F
 import torch.optim as optim
 torch.manual_seed(1)
 
+
+def distance_to_closest_wall(inputs, bound=1.0):
+    """If one dim is 0.1 from a wall, and one is 0.4, this returns
+    0.1, 0.1."""
+    num_dims = inputs.shape[1]
+    dist_to_pos_side = np.abs(inputs - bound)
+    dist_to_neg_side = np.abs(inputs + bound)
+    smaller_of_two = np.minimum(dist_to_pos_side, dist_to_neg_side)
+    smallest_of_two = np.amin(smaller_of_two, axis=1)
+    smallest_of_two = np.expand_dims(smallest_of_two, axis=1)
+    wall_dist = np.tile(smallest_of_two, (1, num_dims))
+    return wall_dist
+
+def distance_to_closest_wall_per_dimension(inputs, bound=1.0):
+    """This returns the distance to the closest wall, for every dimension,
+    for every batch-elem. [[-0.8, 0.3], [0.9, -0.2]] would return
+    [[0.2, 0.7], [0.1, 0.8]]"""
+    abs_inputs = np.abs(inputs)
+    ones = np.ones_like(inputs) * bound
+    return ones - abs_inputs
+
+
 class ModulePlus(nn.Module):
     def set_requires_grad(self, val=False):
         for p in self.parameters():
@@ -78,10 +100,6 @@ class SoftSignNoiseMorpher(ModulePlus):
 
 class ComplicatedScalingNoiseMorpher(ModulePlus):
     """This one is supposed to figure out the distance to the walls and scale by it, to keep the bounds.
-    NOTE: This assumes that it is taken from a SQUARE, not a CIRCLE.
-    1) First, figure out distance to closest wall
-    2) output something bounded by -1 and 1.
-    3) multiply the output by distance to closest wall
     """
     def __init__(self, min_max=1.0):
         super().__init__()
@@ -95,38 +113,26 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         # main = torch.mul(main, min_max)
         self.main = main
 
-    def distance_to_closest_wall(self, inputs):
-        # TODO: NEEDS TESTS!
-        # print("inputs: {}".format(inputs))
-        dist_to_neg_one = np.abs(inputs - -1.0)
-        # print("dist to neg one: {}".format(dist_to_neg_one))
-        dist_to_one = np.abs(inputs - 1)
-        # print("dist to one: {}".format(dist_to_one))
-        smaller_of_two = np.minimum(dist_to_one, dist_to_neg_one)
-        # print("smaller_of_two: {}".format(smaller_of_two))
-        smallest_of_two = np.amin(smaller_of_two, axis=1)
-        smallest_of_two = np.expand_dims(smallest_of_two, axis=1)
-        tiled = np.tile(smallest_of_two, (1,2))
-        print("Tiled min/max: {}/{}".format(np.amin(tiled), np.amax(tiled)))
-        return tiled
-
     def forward(self, inputs):
         """
         Morphs the noise, multiplies it by its scaling
         """
         input_np = inputs.data.numpy()
-        print("input min/max: {}/{}".format(np.amin(input_np), np.amax(input_np)))
+        # print("input min/max: {}/{}".format(np.amin(input_np), np.amax(input_np)))
 
-        wall_dist = self.distance_to_closest_wall(inputs.data.numpy())
-        wall_dist = torch.from_numpy(wall_dist)
-        wall_dist = autograd.Variable(wall_dist, requires_grad=False)
+        wall_dist = distance_to_closest_wall_per_dimension(inputs.data.numpy())
+        wall_dist_v = autograd.Variable(torch.from_numpy(wall_dist), requires_grad=False)
+
         output = self.main(inputs)
-        # import ipdb; ipdb.set_trace()
-        output = torch.mul(output, wall_dist)
-        to_return = output + inputs
+        output = torch.mul(output, wall_dist_v)
 
+        to_return = output + inputs
+        return to_return #comment this line out for logging...
+
+        # LOGGING...
         to_return_np = to_return.data.numpy()
         output_np = output.data.numpy()
         print("output min/max: {}/{}".format(np.amin(output_np), np.amax(output_np)))
-        print("to_return min/max: {}/{}".format(np.amin(to_return_np), np.amax(to_return_np)))
-        return output
+        print("output mean/stddev: {}/{}".format(output_np.mean(), output_np.std()))
+        # print("to_return min/max: {}/{}".format(np.amin(to_return_np), np.amax(to_return_np)))
+        return to_return

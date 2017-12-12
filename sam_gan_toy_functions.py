@@ -12,11 +12,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sklearn.datasets
 
-from lib.utils import calc_gradient_penalty, weights_init
-from lib.plot import (MultiGraphPlotter, generate_comparison_image,
-                      generate_contour_of_latent_vector_space)
-
+from lib.utils import calc_gradient_penalty, weights_init, xavier_init
+from lib.noise_generators import create_generator_noise, create_generator_noise_uniform
 from lib.data_iterators import eight_gaussians
+from lib.plot import (MultiGraphPlotter, generate_comparison_image,
+                      generate_contour_of_latent_vector_space, plot_noise_morpher_output)
 
 
 import torch
@@ -36,8 +36,9 @@ MODE = 'wgan-gp'  # wgan or wgan-gp
 DIM = 512  # Model dimensionality
 FIXED_GENERATOR = False  # whether to hold the generator fixed at real data plus
 # Gaussian noise, as in the plots in the paper
-LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
-
+# LAMBDA = .1  # Smaller lambda seems to help for toy tasks specifically
+# LAMBDA = 0.0
+LAMBDA = 0.2 # I was finding that the gradients were way too big usually, so I toned it down.
 
 CRITIC_ITERS = 5  # How many critic iterations per generator iteration
 BATCH_SIZE = 256  # Batch size
@@ -102,112 +103,12 @@ class Discriminator(ModulePlus):
         return output.view(-1)
 
 
-
-class NoiseMorpher(ModulePlus):
-    # Small point: I think that actually, we should try and use output + inputs. That's the
-    # Res way.
-    def __init__(self, min_max=1.0):
-        super().__init__()
-        self.min_max = min_max
-
-        main = nn.Sequential(
-            nn.Linear(2, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 2)
-        )
-
-        self.main = main
-
-    def forward(self, inputs):
-        output = self.main(inputs)
-        distorted_input = output + inputs
-        return distorted_input
-
-class BoundedNoiseMorpher(ModulePlus):
-    """This assumes that the input is sampled uniformly from -max to max..."""
-    def __init__(self, min_max=1.0):
-        super().__init__()
-        self.min_max = min_max
-        print("Using a simpler model than before as well.")
-        main = nn.Sequential(
-            nn.Linear(2, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 2)
-        )
-
-        self.main = main
-
-    def forward(self, inputs):
-        output = self.main(inputs)
-        distorted_input = output + inputs
-        clamped = distorted_input.clamp(min=-self.min_max, max=self.min_max)
-        return clamped
-
-class SoftSignNoiseMorpher(ModulePlus):
-    # What I don't like about this is that it makes it harder to get to the edges.
-    # It also initializes to nowhere near the identity, which is a pretty big deal...
-    # What I like is that you won't get buildup on the edges.
-    """This assumes that the input is sampled uniformly from -max to max..."""
-    def __init__(self, min_max=1.0):
-        super().__init__()
-        self.min_max = min_max
-        main = nn.Sequential(
-            nn.Linear(2, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 2),
-            nn.Softsign(),
-        )
-        # main = torch.mul(main, min_max)
-        self.main = main
-
-    def forward(self, inputs):
-        output = self.main(inputs)
-        output = torch.mul(output, self.min_max) #Not perfect but the best I can do...
-        return output
-
-class IdentityNoiseMorpher(ModulePlus):
-    def __init__(self):
-        super().__init__()
-        # main = nn.Sequential(
-        #     nn.Linear(2, 50),
-        #     nn.ReLU(True),
-        #     nn.Linear(50, 2),
-        #     nn.Softsign(),
-        # )
-        # main = torch.mul(main, min_max)
-        # self.main = main
-
-    def forward(self, inputs):
-        return inputs
-        # output = self.main(inputs)
-        # output = torch.mul(output, self.min_max) #Not perfect but the best I can do...
-        # return output
-
-
-def create_generator_noise(batch_size, allow_gradient=True):
-    volatile = not allow_gradient
-    noisev = autograd.Variable(torch.randn(batch_size, 2), volatile=volatile)
-    return noisev
-
-
-def create_generator_noise_uniform(batch_size, allow_gradient=True):
-    volatile = not allow_gradient
-    rand_u = (torch.rand(batch_size, 2) - 0.5) #From -0.5 to 0.5
-    rand_u *= 2 #from -1 to 1
-    rand_u *= NOISE_RADIUS
-    randv = autograd.Variable(rand_u, volatile=volatile)
-
-    randv_np = randv.data.numpy()
-    print("randv min/max: {}/{}".format(np.amin(randv_np), np.amax(randv_np)))
-    return randv
-
 def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
     Meaning it tries to make f(real) big and f(fake) small.
     Meaning it should backwards from real with a NEG and backwards from fake with a POS.
+    Tries to make WassD as big as it can.
 
     F(REAL) SHOULD BE BIG AND F(FAKE) SHOULD BE SMALL!
 
@@ -222,7 +123,7 @@ def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
 
     real_data_v = autograd.Variable(torch.Tensor(data))
     noisev = create_generator_noise_uniform(batch_size, allow_gradient=False) #Do not need gradient for gen.
-    fake_data_v = autograd.Variable(g_net(noisev).data)
+    fake_data_v = autograd.Variable(g_net(noisev).data) # I guess this is to cause some separation...
 
     d_real = d_net(real_data_v).mean()
     d_real.backward(NEG_ONE) #That makes it maximize!
@@ -256,8 +157,8 @@ def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
 
     noisev = create_generator_noise_uniform(batch_size)
     noisev_np = noisev.data.numpy()
-    print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
-    print(nm_net)
+    # print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
+    # print(nm_net)
     # print("NOISE V: {}".format(noisev.data.numpy()))
     noise_morphed = nm_net(noisev)
     # print("NOISE MORPHED: {}".format(noise_morphed.data.numpy()))
@@ -293,10 +194,10 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
 
     fake_from_morphed = g_net(noise_morphed)
     d_morphed = d_net(fake_from_morphed).mean()
-    # d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
-    #                         # Makes the inputs to the g_net give smaller D vals.
-    #                         # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
-    d_morphed.backward(NEG_ONE) # PRETTY POSITIVE THIS IS WRONG. SHOULD BE OPPOSITE OF IF TRAINING Gen.
+    d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
+                            # Makes the inputs to the g_net give smaller D vals.
+                            # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
+    # d_morphed.backward(NEG_ONE) # PRETTY POSITIVE THIS IS WRONG. SHOULD BE OPPOSITE OF IF TRAINING Gen.
     nm_optimizer.step()
 
 
@@ -307,7 +208,7 @@ def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, plott
     g_net.set_requires_grad(False)
     nm_net.set_requires_grad(False)
 
-    noisev = create_generator_noise(batch_size, allow_gradient=False)
+    noisev = create_generator_noise_uniform(batch_size, allow_gradient=False)
     noise_morphed = nm_net(noisev)
     fake_from_noise = g_net(noisev)
     fake_from_morphed = g_net(noise_morphed)
@@ -380,17 +281,18 @@ netNM = ComplicatedScalingNoiseMorpher()
 netD.apply(weights_init)
 netG.apply(weights_init)
 netNM.apply(weights_init)
+# netNM.apply(xavier_init)
 print(netG)
 print(netD)
 print(netNM)
-#
+
 d_parameter_differ = ParameterDiffer(netD)
 nm_parameter_differ = ParameterDiffer(netNM)
 g_parameter_differ = ParameterDiffer(netG)
 
 optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
 optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
-optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9), weight_decay=1e-4)
+optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
 
 
 # data = inf_train_gen()
@@ -415,31 +317,33 @@ def plot_all():
 #     if (iteration + 1) % 10 == 0:
 #         plot_all()
 
-NM_ITERS = CRITIC_ITERS * 5
+NM_ITERS = 5 * CRITIC_ITERS
 
 for iteration in range(ITERS):
-    exit("There's an error I can't figure out. The scaling thing keeps getting inputs in the 3 range," +\
-         " when it really should only get inputs in the 1 range. I don't know why.")
+    # exit("There's an error I can't figure out. The scaling thing keeps getting inputs in the 3 range," +\
+        #  " when it really should only get inputs in the 1 range. I don't know why.")
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
         train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
 
-    # for iter_nm in range(NM_ITERS):
-    #     train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
+    for iter_nm in range(NM_ITERS):
+        train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)
 
     train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE)
     log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
-    # log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
+    log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
 
-    log_parameter_diff_nm(nm_parameter_differ, netNM, plotter)
-    log_parameter_diff_d(d_parameter_differ, netG, plotter)
-    log_parameter_diff_g(g_parameter_differ, netG, plotter)
+    # log_parameter_diff_nm(nm_parameter_differ, netNM, plotter)
+    # log_parameter_diff_d(d_parameter_differ, netG, plotter)
+    # log_parameter_diff_g(g_parameter_differ, netG, plotter)
 
-    if (iteration + 1) % 10 == 0:
+    if (iteration + 1) % 25 == 0:
         print("plotting iteration {}".format(iteration))
         plot_all()
         save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
-        generate_comparison_image(_data, netG, netD, save_string, BATCH_SIZE=128, N_POINTS=128, RANGE=3)
+        generate_comparison_image(_data, netG, netD, save_string, batch_size=BATCH_SIZE, N_POINTS=128, RANGE=3)
         save_string = os.path.join(PIC_DIR, "latent_space_contours/frame" + str(iteration) + ".jpg")
-        generate_contour_of_latent_vector_space(netG, netD, save_string, BATCH_SIZE=128, N_POINTS=128, RANGE=1)
+        generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=128, RANGE=1)
+        save_string = os.path.join(PIC_DIR, "noise_morpher_output/frame" + str(iteration) + ".jpg")
+        plot_noise_morpher_output(netNM, save_string, N_POINTS=50)
         # generate_comparison_image()
