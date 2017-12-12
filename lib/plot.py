@@ -5,7 +5,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import torch
 import torch.autograd as autograd
-
+from .noise_generators import create_generator_noise_uniform
 
 import collections
 import time
@@ -82,7 +82,7 @@ class BasicPlotter(object):
         plt.savefig(self.location.replace(' ', '_'))
 
 
-def generate_contour_of_latent_vector_space(netG, netD, save_string, BATCH_SIZE, N_POINTS=128, RANGE=1):
+def generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=128, RANGE=1):
     """
     This only works because the output is also 2D. But it should show what the
     wass-d is through the space of latent vectors.
@@ -107,7 +107,7 @@ def generate_contour_of_latent_vector_space(netG, netD, save_string, BATCH_SIZE,
     plt.savefig(save_string)
 
 
-def generate_comparison_image(true_dist, netG, netD, save_string, BATCH_SIZE=128, N_POINTS=128, RANGE=3):
+def generate_comparison_image(true_dist, netG, netD, save_string, batch_size=128, N_POINTS=128, RANGE=3):
     # First, generate a grid of N_POINTS points, stretching from -3 to 3, in two dimensions...
     _make_dir(save_string)
     points = np.zeros((N_POINTS, N_POINTS, 2), dtype='float32')
@@ -119,9 +119,9 @@ def generate_comparison_image(true_dist, netG, netD, save_string, BATCH_SIZE=128
 
     disc_map = netD(points_v).data.numpy()
 
-    noise = torch.randn(BATCH_SIZE, 2)
+    # noise = torch.randn(batch_size, 2)
+    noisev = create_generator_noise_uniform(batch_size, allow_gradient=False)
 
-    noisev = autograd.Variable(noise, volatile=True)
     samples = netG(noisev).cpu().data.numpy()
 
     x = y = np.linspace(-RANGE, RANGE, N_POINTS)
@@ -134,6 +134,28 @@ def generate_comparison_image(true_dist, netG, netD, save_string, BATCH_SIZE=128
     plt.scatter(samples[:, 0], samples[:, 1], c='green', marker='+')
 
     plt.savefig(save_string)
+
+def plot_noise_morpher_output(netNM, save_string, N_POINTS=128):
+    # Assumes taken from random uniform. Going to plot grid to see what it looks like.
+    _make_dir(save_string)
+    points = np.zeros((N_POINTS, N_POINTS, 2), dtype='float32')
+    points[:, :, 0] = np.linspace(-1, 1, N_POINTS)[:, None]
+    points[:, :, 1] = np.linspace(-1, 1, N_POINTS)[None, :]
+    points = points.reshape((-1, 2))
+    points_v = autograd.Variable(torch.Tensor(points), volatile=True)
+
+    noise_morphed = netNM(points_v).data.numpy()
+    x_n = noise_morphed[0,:]
+    y_n = noise_morphed[1,:]
+
+    plt.clf()
+    # plt.scatter(points[:,0], points[:, 1], c='green', marker='+')
+    plt.scatter(noise_morphed[:,0], noise_morphed[:, 1], c='orange', marker='+')
+    plt.savefig(save_string)
+
+
+
+
 
 
 if __name__ == '__main__':
