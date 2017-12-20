@@ -37,12 +37,12 @@ def mnist_generator(data, batch_size, n_labelled, limit=None):
         if n_labelled is not None:
             labelled_batches = labelled.reshape(-1, batch_size)
 
-            for i in xrange(len(image_batches)):
+            for i in range(len(image_batches)):
                 yield (numpy.copy(image_batches[i]), numpy.copy(target_batches[i]), numpy.copy(labelled))
 
         else:
 
-            for i in xrange(len(image_batches)):
+            for i in range(len(image_batches)):
                 yield (numpy.copy(image_batches[i]), numpy.copy(target_batches[i]))
 
     return get_epoch
@@ -53,10 +53,10 @@ def load(batch_size, test_batch_size, n_labelled=None):
 
     if not os.path.isfile(filepath):
         print("Couldn't find MNIST dataset in /tmp, downloading...")
-        urllib.urlretrieve(url, filepath)
+        urllib.request.urlretrieve(url, filepath)
 
     with gzip.open('/tmp/mnist.pkl.gz', 'rb') as f:
-        train_data, dev_data, test_data = pickle.load(f)
+        train_data, dev_data, test_data = pickle.load(f, encoding='latin1')
 
     return (
         mnist_generator(train_data, batch_size, n_labelled),

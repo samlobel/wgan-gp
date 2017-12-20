@@ -13,3 +13,7 @@ An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 ### NOTES:
 * Something to think about is: I've heard multivariate gaussians are really just like the edge of a sphere, versus the inside, because of how much more area is enclosed in the outer part. Does that have any effect here?
 * Any interesting was to make the noise smooth? I think the easiest one and the one I should start with is just clipping.  
+
+## TO DO:
+* Add more plots to MNIST
+* Make non-noise-morphed version toggleable by ENVs.

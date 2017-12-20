@@ -170,7 +170,7 @@ if use_cuda:
 
 data = inf_train_gen()
 
-for iteration in xrange(ITERS):
+for iteration in range(ITERS):
     start_time = time.time()
     ############################
     # (1) Update D network
@@ -178,8 +178,8 @@ for iteration in xrange(ITERS):
     for p in netD.parameters():  # reset requires_grad
         p.requires_grad = True  # they are set to False below in netG update
 
-    for iter_d in xrange(CRITIC_ITERS):
-        _data = data.next()
+    for iter_d in range(CRITIC_ITERS):
+        _data = next(data)
         real_data = torch.Tensor(_data)
         if use_cuda:
             real_data = real_data.cuda(gpu)
@@ -253,7 +253,7 @@ for iteration in xrange(ITERS):
         generate_image(iteration, netG)
 
     # Write logs every 100 iters
-    if (iteration < 5) or (iteration % 100 == 99):
+    if (iteration < 5) or ((iteration + 1) % 10 == 0):
         lib.plot.flush()
 
     lib.plot.tick()

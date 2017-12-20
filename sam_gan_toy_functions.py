@@ -4,16 +4,12 @@ sys.path.append(os.getcwd())
 
 import random
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-
-
 import numpy as np
 import sklearn.datasets
 
-from lib.utils import calc_gradient_penalty, weights_init, xavier_init
-from lib.noise_generators import create_generator_noise, create_generator_noise_uniform
+from lib.utils import weights_init, xavier_init
+from lib.train_utils import train_discriminator, train_noise, train_generator
+from lib.noise_generators import create_generator_noise_uniform
 from lib.data_iterators import eight_gaussians
 from lib.plot import (MultiGraphPlotter, generate_comparison_image,
                       generate_contour_of_latent_vector_space, plot_noise_morpher_output)
@@ -24,7 +20,7 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-torch.manual_seed(1)
+# torch.manual_seed(1)
 
 from noise_morphers import ComplicatedScalingNoiseMorpher
 
@@ -101,105 +97,6 @@ class Discriminator(ModulePlus):
     def forward(self, inputs):
         output = self.main(inputs)
         return output.view(-1)
-
-
-def train_discriminator(g_net, d_net, data, d_optimizer, plotter):
-    """
-    Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
-    Meaning it tries to make f(real) big and f(fake) small.
-    Meaning it should backwards from real with a NEG and backwards from fake with a POS.
-    Tries to make WassD as big as it can.
-
-    F(REAL) SHOULD BE BIG AND F(FAKE) SHOULD BE SMALL!
-
-    No noise though. The noise is for hard-example-mining for the generator, else.
-    """
-    batch_size = data.shape[0]
-    # First, we only care about the Discriminator's D
-    d_net.set_requires_grad(True)
-    g_net.set_requires_grad(False)
-
-    d_net.zero_grad()
-
-    real_data_v = autograd.Variable(torch.Tensor(data))
-    noisev = create_generator_noise_uniform(batch_size, allow_gradient=False) #Do not need gradient for gen.
-    fake_data_v = autograd.Variable(g_net(noisev).data) # I guess this is to cause some separation...
-
-    d_real = d_net(real_data_v).mean()
-    d_real.backward(NEG_ONE) #That makes it maximize!
-
-    d_fake = d_net(fake_data_v).mean()
-    d_fake.backward(ONE) #That makes it minimize!
-
-    gradient_penalty = calc_gradient_penalty(d_net, real_data_v.data, fake_data_v.data)
-    scaled_grad_penalty = LAMBDA * gradient_penalty
-    scaled_grad_penalty.backward(ONE) #That makes it minimize!
-
-    d_wasserstein = d_real - d_fake
-    d_total_cost = d_fake - d_real + scaled_grad_penalty
-
-    plotter.add_point(graph_name="Grad Penalty", value=scaled_grad_penalty.data.numpy()[0], bin_name="Grad Distance from 1 or -1")
-    plotter.add_point(graph_name="Wasserstein Distance", value=d_wasserstein.data.numpy()[0], bin_name="Wasserstein Distance")
-    plotter.add_point(graph_name="Discriminator Cost", value=d_total_cost.data.numpy()[0], bin_name="Total D Cost")
-
-    d_optimizer.step()
-
-
-def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
-    # NOTE: I could include nm_net optionally...
-    d_net.set_requires_grad(True) # I think this was my change but not sure...
-    g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(True) # Just set them all to true..
-
-    g_net.zero_grad()
-    d_net.zero_grad()
-    nm_net.zero_grad()
-
-    noisev = create_generator_noise_uniform(batch_size)
-    noisev_np = noisev.data.numpy()
-    # print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
-    # print(nm_net)
-    # print("NOISE V: {}".format(noisev.data.numpy()))
-    noise_morphed = nm_net(noisev)
-    # print("NOISE MORPHED: {}".format(noise_morphed.data.numpy()))
-    fake_data = g_net(noise_morphed)
-    d_fake = d_net(fake_data).mean()
-    d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.
-
-    g_optimizer.step()
-
-
-def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
-    """
-    WassF maximizes F(real) - F(fake), so it makes F(fake) as small as it can.
-
-    The discriminator tries to make F(fake) as small as it can. So, the noise-morpher should
-    try and morph the noise so that D(gen(morph(noise))) is as small as possible.
-    So, D_morphed should be smaller than D_noise if it's working well.
-
-    If I were to log this, I would log D_noise - D_morphed, and try and make it as big as I could.
-
-    """
-
-    # d_net.set_requires_grad(False)
-    d_net.set_requires_grad(True)
-    g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(True)
-    d_net.zero_grad()
-    g_net.zero_grad()
-    nm_net.zero_grad()
-
-    noisev = create_generator_noise_uniform(batch_size)
-    noise_morphed = nm_net(noisev)
-
-    fake_from_morphed = g_net(noise_morphed)
-    d_morphed = d_net(fake_from_morphed).mean()
-    d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
-                            # Makes the inputs to the g_net give smaller D vals.
-                            # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
-    # d_morphed.backward(NEG_ONE) # PRETTY POSITIVE THIS IS WRONG. SHOULD BE OPPOSITE OF IF TRAINING Gen.
-    nm_optimizer.step()
-
 
 
 
@@ -290,9 +187,14 @@ d_parameter_differ = ParameterDiffer(netD)
 nm_parameter_differ = ParameterDiffer(netNM)
 g_parameter_differ = ParameterDiffer(netG)
 
-optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
-optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
-optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
+# optimizerD = optim.Adam(netD.parameters(), lr=1e-4, betas=(0.5, 0.9))
+# optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
+# optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
+
+# """New Theory: The reason the noise thing is acting so funky is that ADAM is messing it up."""
+optimizerD = optim.SGD(netD.parameters(), lr=1e-2, momentum=0.5)
+optimizerG = optim.SGD(netG.parameters(), lr=1e-2, momentum=0.5)
+optimizerNM = optim.SGD(netNM.parameters(), lr=1e-2, momentum=0.5)
 
 
 # data = inf_train_gen()
@@ -317,14 +219,14 @@ def plot_all():
 #     if (iteration + 1) % 10 == 0:
 #         plot_all()
 
-NM_ITERS = 5 * CRITIC_ITERS
+NM_ITERS = CRITIC_ITERS
 
 for iteration in range(ITERS):
     # exit("There's an error I can't figure out. The scaling thing keeps getting inputs in the 3 range," +\
         #  " when it really should only get inputs in the 1 range. I don't know why.")
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
-        train_discriminator(netG, netD, _data, optimizerD, plotter=plotter)
+        train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter)
 
     for iter_nm in range(NM_ITERS):
         train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE)

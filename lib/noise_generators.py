@@ -5,7 +5,7 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-torch.manual_seed(1)
+# torch.manual_seed(1)
 
 
 def create_generator_noise(batch_size, allow_gradient=True):
@@ -14,9 +14,9 @@ def create_generator_noise(batch_size, allow_gradient=True):
     return noisev
 
 
-def create_generator_noise_uniform(batch_size, noise_radius=1.0, allow_gradient=True):
+def create_generator_noise_uniform(batch_size, noise_radius=1.0, noise_dim=2, allow_gradient=True):
     volatile = not allow_gradient
-    rand_u = (torch.rand(batch_size, 2) - 0.5) #From -0.5 to 0.5
+    rand_u = (torch.rand(batch_size, noise_dim) - 0.5) #From -0.5 to 0.5
     rand_u *= 2 #from -1 to 1
     rand_u *= noise_radius
     return autograd.Variable(rand_u, volatile=volatile)

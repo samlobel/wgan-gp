@@ -9,11 +9,18 @@ ONE = torch.FloatTensor([1])
 NEG_ONE = ONE * -1
 
 def calc_gradient_penalty(netD, real_data, fake_data):
+    # import ipdb; ipdb.set_trace()
+
     """This is a modified version of his. I didn't want to mess with it, although I will if I have to."""
     batch_size = real_data.size()[0]
+    num_dims = len(real_data.size())
     # print("batch size for calc_gradient_penalty is: {}".format(batch_size))
-    alpha = torch.rand(batch_size, 1)
-    alpha = alpha.expand(real_data.size())
+    alpha = torch.rand(batch_size, *[1 for i in range(num_dims - 1)])
+    # alpha = torch.rand(batch_size, 1, 1, 1)
+    # import ipdb; ipdb.set_trace()
+
+    # alpha = alpha.expand(real_data.size())
+    alpha = alpha.expand_as(real_data)
 
     interpolates = alpha * real_data + ((1 - alpha) * fake_data)
     interpolates = autograd.Variable(interpolates, requires_grad=True)
@@ -27,7 +34,7 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     return gradient_penalty
 
 
-def train_discriminator(g_net, d_net, data, d_optimizer, LAMBDA=0.1, plotter=None):
+def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1, plotter=None, flatten=False):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
     Meaning it tries to make f(real) big and f(fake) small.
@@ -46,8 +53,12 @@ def train_discriminator(g_net, d_net, data, d_optimizer, LAMBDA=0.1, plotter=Non
     d_net.zero_grad()
 
     real_data_v = autograd.Variable(torch.Tensor(data))
-    noisev = create_generator_noise_uniform(batch_size, allow_gradient=False) #Do not need gradient for gen.
+    noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim, allow_gradient=False) #Do not need gradient for gen.
     fake_data_v = autograd.Variable(g_net(noisev).data) # I guess this is to cause some separation...
+    # import ipdb; ipdb.set_trace()
+
+    # if flatten:
+    #     fake_data_v = fake_data_v.view(BATCH_SIZE, -1)
 
     d_real = d_net(real_data_v).mean()
     d_real.backward(NEG_ONE) #That makes it maximize!
@@ -68,7 +79,7 @@ def train_discriminator(g_net, d_net, data, d_optimizer, LAMBDA=0.1, plotter=Non
 
     d_optimizer.step()
 
-def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
+def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
     """
     WassF maximizes F(real) - F(fake), so it makes F(fake) as small as it can.
 
@@ -88,7 +99,7 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
     g_net.zero_grad()
     nm_net.zero_grad()
 
-    noisev = create_generator_noise_uniform(batch_size)
+    noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
     noise_morphed = nm_net(noisev)
 
     fake_from_morphed = g_net(noise_morphed)
@@ -99,7 +110,7 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size):
     nm_optimizer.step()
 
 
-def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
+def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2):
     # NOTE: I could include nm_net optionally...
     d_net.set_requires_grad(True) # I think this was my change but not sure...
     g_net.set_requires_grad(True)
@@ -109,7 +120,7 @@ def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size):
     d_net.zero_grad()
     nm_net.zero_grad()
 
-    noisev = create_generator_noise_uniform(batch_size)
+    noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
     noisev_np = noisev.data.numpy()
     # print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
     # print(nm_net)

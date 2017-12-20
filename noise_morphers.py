@@ -101,16 +101,28 @@ class SoftSignNoiseMorpher(ModulePlus):
 class ComplicatedScalingNoiseMorpher(ModulePlus):
     """This one is supposed to figure out the distance to the walls and scale by it, to keep the bounds.
     """
-    def __init__(self, min_max=1.0):
+    def __init__(self, noise_dim=2, inner_dim=50, num_layers=3):
+        if num_layers < 2:
+            raise Exception("Need at least 2 layers for this to work...")
+
         super().__init__()
-        self.min_max = min_max
-        main = nn.Sequential(
-            nn.Linear(2, 50),
-            nn.ReLU(True),
-            nn.Linear(50, 2),
-            nn.Softsign(),
-        )
-        # main = torch.mul(main, min_max)
+        sequence = [nn.Linear(noise_dim, inner_dim), nn.ReLU(True)]
+        for i in range(num_layers - 2):
+            sequence.append(nn.Linear(inner_dim, inner_dim))
+            sequence.append(nn.ReLU(True))
+
+        sequence.append(nn.Linear(inner_dim, noise_dim))
+        sequence.append(nn.Softsign())
+
+        main = nn.Sequential(*sequence)
+        # main = nn.Sequential(
+        #     nn.Linear(noise_dim, inner_dim),
+        #     nn.ReLU(True),
+        #     nn.Linear(inner_dim, inner_dim),
+        #     nn.ReLU(True),
+        #     nn.Linear(inner_dim, noise_dim),
+        #     nn.Softsign(),
+        # )
         self.main = main
 
     def forward(self, inputs):
