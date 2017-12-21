@@ -111,23 +111,26 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
 
 
 def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2):
+    # NM_NET might be None, in which case you just use the noise...
     # NOTE: I could include nm_net optionally...
     d_net.set_requires_grad(True) # I think this was my change but not sure...
     g_net.set_requires_grad(True)
-    nm_net.set_requires_grad(True) # Just set them all to true..
+    if nm_net:
+        nm_net.set_requires_grad(True) # Just set them all to true..
 
     g_net.zero_grad()
     d_net.zero_grad()
-    nm_net.zero_grad()
+    if nm_net:
+        nm_net.zero_grad()
 
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
     noisev_np = noisev.data.numpy()
     # print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
-    # print(nm_net)
     # print("NOISE V: {}".format(noisev.data.numpy()))
-    noise_morphed = nm_net(noisev)
-    # print("NOISE MORPHED: {}".format(noise_morphed.data.numpy()))
-    fake_data = g_net(noise_morphed)
+    if nm_net:
+        noisev = nm_net(noisev)
+        # print("NOISE MORPHED: {}".format(noisev.data.numpy()))
+    fake_data = g_net(noisev)
     d_fake = d_net(fake_data).mean()
     d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.
 

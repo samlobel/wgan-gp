@@ -17,3 +17,7 @@ An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 ## TO DO:
 * Add more plots to MNIST
 * Make non-noise-morphed version toggleable by ENVs.
+* Find out why things don't work when I set CRITIC_ITERS to 1
+
+# Where I left off:
+* I think I got the non-NM version to work, but not tested.

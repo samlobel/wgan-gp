@@ -5,6 +5,8 @@ import torch.autograd as autograd
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+
+from .base import ModulePlus
 torch.manual_seed(1)
 
 
@@ -28,11 +30,6 @@ def distance_to_closest_wall_per_dimension(inputs, bound=1.0):
     ones = np.ones_like(inputs) * bound
     return ones - abs_inputs
 
-
-class ModulePlus(nn.Module):
-    def set_requires_grad(self, val=False):
-        for p in self.parameters():
-            p.requires_grad = val
 
 class NoiseMorpher(ModulePlus):
     # Small point: I think that actually, we should try and use output + inputs. That's the
@@ -115,14 +112,6 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         sequence.append(nn.Softsign())
 
         main = nn.Sequential(*sequence)
-        # main = nn.Sequential(
-        #     nn.Linear(noise_dim, inner_dim),
-        #     nn.ReLU(True),
-        #     nn.Linear(inner_dim, inner_dim),
-        #     nn.ReLU(True),
-        #     nn.Linear(inner_dim, noise_dim),
-        #     nn.Softsign(),
-        # )
         self.main = main
 
     def forward(self, inputs):
