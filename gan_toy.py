@@ -70,17 +70,7 @@ optimizerG = optim.Adam(netG.parameters(), lr=1e-4, betas=(0.5, 0.9))
 if USE_NOISE_MORPHER:
     optimizerNM = optim.Adam(netNM.parameters(), lr=1e-4, betas=(0.5, 0.9))#, weight_decay=1e-4)
 
-# """New Theory: The reason the noise thing is acting so funky is that ADAM is messing it up."""
-# optimizerD = optim.SGD(netD.parameters(), lr=1e-2, momentum=0.5)
-# optimizerG = optim.SGD(netG.parameters(), lr=1e-2, momentum=0.5)
-# if USE_NOISE_MORPHER:
-#     optimizerNM = optim.SGD(netNM.parameters(), lr=1e-2, momentum=0.5)
-
 data = eight_gaussians(BATCH_SIZE)
-
-def plot_all():
-    plotter.graph_all()
-
 
 for iteration in range(ITERS):
     for iter_d in range(CRITIC_ITERS):
@@ -98,7 +88,7 @@ for iteration in range(ITERS):
 
     if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
         print("plotting iteration {}".format(iteration))
-        plot_all()
+        plotter.graph_all()
         save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
         generate_comparison_image(_data, netG, netD, save_string, batch_size=BATCH_SIZE, N_POINTS=128, RANGE=3)
         save_string = os.path.join(PIC_DIR, "latent_space_contours/frame" + str(iteration) + ".jpg")

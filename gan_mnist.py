@@ -28,7 +28,7 @@ from lib.train_utils import train_discriminator, train_noise, train_generator
 from lib.plot import (MultiGraphPlotter, generate_comparison_image,
                       generate_contour_of_latent_vector_space, plot_noise_morpher_output)
 
-from noise_morphers import ComplicatedScalingNoiseMorpher
+from models.noise_morphers import ComplicatedScalingNoiseMorpher
 
 
 
