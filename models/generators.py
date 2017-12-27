@@ -25,22 +25,24 @@ class BasicGenerator(ModulePlus):
 
 
 class BasicMnistGenerator(ModulePlus):
-    def __init__(self):
-        super(Generator, self).__init__()
+    def __init__(self, noise_dim=128, inner_dim=64, output_dim=784):
+        super(BasicMnistGenerator, self).__init__()
+        self.inner_dim = inner_dim
+        self.output_dim=output_dim
 
         preprocess = nn.Sequential(
-            nn.Linear(NOISE_DIM, 4*4*4*DIM),
+            nn.Linear(noise_dim, 4*4*4*inner_dim),
             nn.ReLU(True),
         )
         block1 = nn.Sequential(
-            nn.ConvTranspose2d(4*DIM, 2*DIM, 5),
+            nn.ConvTranspose2d(4*inner_dim, 2*inner_dim, 5),
             nn.ReLU(True),
         )
         block2 = nn.Sequential(
-            nn.ConvTranspose2d(2*DIM, DIM, 5),
+            nn.ConvTranspose2d(2*inner_dim, inner_dim, 5),
             nn.ReLU(True),
         )
-        deconv_out = nn.ConvTranspose2d(DIM, 1, 8, stride=2)
+        deconv_out = nn.ConvTranspose2d(inner_dim, 1, 8, stride=2)
 
         self.block1 = block1
         self.block2 = block2
@@ -50,7 +52,7 @@ class BasicMnistGenerator(ModulePlus):
 
     def forward(self, input):
         output = self.preprocess(input)
-        output = output.view(-1, 4*DIM, 4, 4)
+        output = output.view(-1, 4*self.inner_dim, 4, 4)
         output = self.block1(output)
         output = output[:, :, :7, :7]
         output = self.block2(output)
@@ -58,4 +60,4 @@ class BasicMnistGenerator(ModulePlus):
         output = self.sigmoid(output)
         return output
 
-        return output.view(-1, OUTPUT_DIM)
+        return output.view(-1, self.output_dim)

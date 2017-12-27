@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import torch
 import torch.autograd as autograd
 from .noise_generators import create_generator_noise_uniform
+from .save_images import save_images
 
 import collections
 import time
@@ -181,6 +182,21 @@ def log_size_of_morph(nm_net, noise_gen_func, batch_size, plotter):
     av_morphing_amount = (morphing_amount ** 2).mean()
     plotter.add_point(graph_name="average distance in each direction NoiseMorpher moves", value=av_morphing_amount, bin_name="Distance Noise Moves In Each Direction")
 
+
+def generate_mnist_image(netG, save_string, batch_size, noise_dim):
+    noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim, allow_gradient=False)
+    samples = netG(noisev)
+    samples = samples.view(batch_size, 28, 28)
+
+    samples = samples.cpu().data.numpy()
+
+    dirname = os.path.dirname(save_string)
+    os.makedirs(dirname, exist_ok=True)
+
+    save_images(
+        samples,
+        save_string
+    )
 
 
 

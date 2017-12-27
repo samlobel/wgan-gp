@@ -26,10 +26,11 @@ from lib.data_iterators import mnist_iterator
 from lib.noise_generators import create_generator_noise_uniform
 from lib.train_utils import train_discriminator, train_noise, train_generator
 from lib.plot import (MultiGraphPlotter, generate_comparison_image,
-                      generate_contour_of_latent_vector_space, plot_noise_morpher_output)
+                      generate_contour_of_latent_vector_space, plot_noise_morpher_output, generate_mnist_image)
 
 from models.noise_morphers import ComplicatedScalingNoiseMorpher
-
+from models.generators import BasicMnistGenerator
+from models.discriminators import BasicMnistDiscriminator
 
 
 
@@ -42,7 +43,7 @@ ITERS = 200000 # How many generator iterations to train for
 OUTPUT_DIM = 784 # Number of pixels in MNIST (28*28)
 NOISE_DIM=128
 NM_ITERS = CRITIC_ITERS
-PIC_DIR='sam_tmp/mnist'
+PIC_DIR='tmp/mnist'
 
 # lib.print_model_settings(locals().copy())
 
@@ -146,8 +147,10 @@ def generate_image(frame, netG):
 
 # ==================Definition End======================
 
-netG = Generator()
-netD = Discriminator()
+# netG = Generator()
+# netD = Discriminator()
+netG = BasicMnistGenerator()
+netD = BasicMnistDiscriminator()
 netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM, inner_dim=300, num_layers=3)
 
 print(netG)
@@ -181,7 +184,7 @@ for iteration in range(ITERS):
     # log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
     # log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
 
-    if (iteration + 1) % 10 == 0:
+    if (iteration + 1) % 1 == 0:
         print("plotting iteration {}".format(iteration))
         plot_all()
         # save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
@@ -190,4 +193,6 @@ for iteration in range(ITERS):
         # generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=128, RANGE=1)
         # save_string = os.path.join(PIC_DIR, "noise_morpher_output/frame" + str(iteration) + ".jpg")
         # plot_noise_morpher_output(netNM, save_string, N_POINTS=50)
-        generate_image(iteration, netG)
+        # generate_image(iteration, netG)
+        save_string = os.path.join(PIC_DIR, 'frames', 'samples_{}.png'.format(iteration))
+        generate_mnist_image(netG, save_string, BATCH_SIZE, NOISE_DIM)
