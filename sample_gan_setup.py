@@ -18,10 +18,18 @@ from models.discriminators import BasicDiscriminator
 
 import torch.optim as optim
 
+defaults = {
+    "use_noise_morpher" : True,
+    "lambda" : 0.2,
+    "critic_iters": 5,
+    "noise_iters" : 5,
+    "batch_size" : 50,
+    "plotting_increment" : 10,
+}
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--use-noise-morpher", help="Whether to use noise-morphing or not. Defaults to True.", type=lambda x:bool(distutils.util.strtobool(x)), default=defaults["use_noise_morpher"])
-parser.add_argument("--grad-lambda", help="Scaling for gradient penalty", type=float, default=0.2)
+parser.add_argument("--grad-lambda", help="Scaling for gradient penalty", type=float, default=defaults['lambda'])
 parser.add_argument("--critic-iters", help="Number of Critic optimization steps for every generator step", type=int, default=5)
 parser.add_argument("--noise-iters", help="Number of Noise optimization steps for every generator step", type=int, default=5)
 parser.add_argument("--batch-size", help="Batch size for latent vectors", type=int, default=256)
