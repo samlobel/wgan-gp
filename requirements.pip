@@ -1,0 +1,8 @@
+ipdb
+Pillow==4.3.0
+torchvision==0.1.9
+scikit-learn==0.19.1
+scipy==1.0.0
+sklearn==0.0
+matplotlib==2.1.0
+
