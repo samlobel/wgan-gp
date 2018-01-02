@@ -5,7 +5,7 @@ from .base import ModulePlus
 class BasicDiscriminator(ModulePlus):
     """ Same as BasicGenerator, except that it's crushed down to one dimension...
     """
-    def __init__(self, noise_dim=2, inner_dim=512, output_dim=2, num_layers=4):
+    def __init__(self, noise_dim=2, inner_dim=512, num_layers=4):
         if num_layers < 2:
             raise Exception("Need at least 2 layers for this to work...")
 
@@ -16,7 +16,7 @@ class BasicDiscriminator(ModulePlus):
             sequence.append(nn.Linear(inner_dim, inner_dim))
             sequence.append(nn.ReLU(True))
 
-        sequence.append(nn.Linear(inner_dim, output_dim))
+        sequence.append(nn.Linear(inner_dim, 1))
         main = nn.Sequential(*sequence)
         self.main = main
 
