@@ -3,6 +3,7 @@ import sys
 import argparse
 import json
 import distutils
+import distutils.util
 
 from lib.utils import weights_init, xavier_init
 from lib.train_utils import train_discriminator, train_noise, train_generator
