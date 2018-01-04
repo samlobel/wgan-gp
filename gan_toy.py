@@ -11,7 +11,7 @@ from lib.data_iterators import eight_gaussians
 from lib.plot import (MultiGraphPlotter, generate_comparison_image,
                       generate_contour_of_latent_vector_space, plot_noise_morpher_output)
 from lib.data_loggers import log_difference_in_morphed_vs_regular, log_size_of_morph
-
+from lib.param_measurers import mean_stddev_network_parameters, mean_stddev_network_grads, mean_stddev_optimizer_parameters
 from models.noise_morphers import ComplicatedScalingNoiseMorpher
 from models.generators import BasicGenerator
 from models.discriminators import BasicDiscriminator
@@ -74,6 +74,9 @@ if USE_NOISE_MORPHER:
 data = eight_gaussians(BATCH_SIZE)
 
 for iteration in range(ITERS):
+    print("Param stats: {}".format(mean_stddev_network_parameters(netG)))
+    print("Grad stats: {}".format(mean_stddev_network_grads(netD)))
+
     for iter_d in range(CRITIC_ITERS):
         _data = next(data)
         train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter)
@@ -87,6 +90,7 @@ for iteration in range(ITERS):
         log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter)
         log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter)
 
+    # import ipdb; ipdb.set_trace()
     if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
         print("plotting iteration {}".format(iteration))
         plotter.graph_all()

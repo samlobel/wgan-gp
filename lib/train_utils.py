@@ -8,10 +8,13 @@ from .noise_generators import create_generator_noise_uniform
 ONE = torch.FloatTensor([1])
 NEG_ONE = ONE * -1
 
-def calc_gradient_penalty(netD, real_data, fake_data):
-    # import ipdb; ipdb.set_trace()
+from torch.nn.utils.clip_grad import clip_grad_norm
 
-    """This is a modified version of his. I didn't want to mess with it, although I will if I have to."""
+
+def calc_gradient_penalty(netD, real_data, fake_data):
+    """NOTE: This is done much differently than his. He uses gradients in the shape of inputs, but
+    I flatten it before taking the norm. I think mine is right, but I can't be sure. Posting in a forum.
+    """
     batch_size = real_data.size()[0]
     num_dims = len(real_data.size())
     # print("batch size for calc_gradient_penalty is: {}".format(batch_size))
@@ -30,7 +33,9 @@ def calc_gradient_penalty(netD, real_data, fake_data):
                               grad_outputs=torch.ones(disc_interpolates.size()),
                               create_graph=True, retain_graph=True, only_inputs=True)[0]
 
-    gradient_penalty = ((gradients.norm(2, dim=1) - 1) ** 2).mean()
+
+    gradients_reshaped = gradients.view(gradients.size()[0], -1)
+    gradient_penalty = ((gradients_reshaped.norm(2, dim=1) - 1) ** 2).mean() #MINE!
     return gradient_penalty
 
 
@@ -107,6 +112,7 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
     d_morphed.backward(ONE) # That makes it minimize d_morphed, which it should do.
                             # Makes the inputs to the g_net give smaller D vals.
                             # So, when compared, hopefully D(G(NM(noise))) < D(G(noise))
+
     nm_optimizer.step()
 
 

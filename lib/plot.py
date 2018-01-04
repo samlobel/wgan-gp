@@ -190,6 +190,8 @@ def generate_mnist_image(netG, save_string, batch_size, noise_dim):
 
     samples = samples.cpu().data.numpy()
 
+    # print(samples)
+
     dirname = os.path.dirname(save_string)
     os.makedirs(dirname, exist_ok=True)
 
