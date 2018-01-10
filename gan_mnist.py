@@ -4,6 +4,8 @@ import argparse
 import json
 import distutils
 import distutils.util
+import pickle
+import numpy as np
 
 from lib.utils import weights_init, xavier_init
 from lib.train_utils import train_discriminator, train_noise, train_generator
@@ -14,12 +16,32 @@ from lib.plot import (MultiGraphPlotter, generate_comparison_image,
                       generate_contour_of_latent_vector_space, plot_noise_morpher_output, generate_mnist_image)
 from lib.data_loggers import log_difference_in_morphed_vs_regular, log_size_of_morph
 from lib.param_measurers import mean_stddev_network_grads, mean_stddev_network_parameters
+from lib.gif_gen import make_gif_from_numpy
+
 from models.noise_morphers import ComplicatedScalingNoiseMorpher
 from models.generators import BasicMnistGenerator
 from models.discriminators import BasicMnistDiscriminator
 
 import torch.optim as optim
 from torch.nn.utils.clip_grad import clip_grad_norm
+
+
+def pickle_function(base_dir, generator, discriminator, noise_morpher, plotter, iteration):
+    if input("Would you like to pickle this round (y/n)? \n>>> ").lower() == "y":
+        print("Pickling.")
+        pickle_loc = input("Where you would like to store the pickled file? Path prefix is {} \n>>> ".format(base_dir))
+        to_pickle = {
+            "generator" : generator,
+            "discriminator" : discriminator,
+            "noise_morpher" : noise_morpher,
+            "plotter" : plotter,
+            "iteration" : iteration
+        }
+        pickle_loc = os.path.join(base_dir, pickle_loc)
+        with open(pickle_loc, 'wb') as f:
+            pickle.dump(to_pickle, f)
+    else:
+        print("Not pickling.")
 
 defaults = {
     "use_noise_morpher" : True,
@@ -98,36 +120,53 @@ if USE_NOISE_MORPHER:
 
 data = mnist_iterator(BATCH_SIZE)
 
-for iteration in range(ITERS):
-    print("Param stats: {}".format(mean_stddev_network_parameters(netD)))
-    print("Grad stats: {}".format(mean_stddev_network_grads(netD)))
-    # clip_grad_norm(netD.parameters(), max_norm=10.0)
-    # print("Grad stats after clipping: {}".format(mean_stddev_network_grads(netD)))
 
-    for iter_d in range(CRITIC_ITERS):
-        _data = next(data)
-        train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter, noise_dim=NOISE_DIM)
+def write_gif_folder(save_dir, iter_number):
+    print("W")
+    start_noise = np.zeros(NOISE_DIM)
+    end_noise = np.ones(NOISE_DIM)
+    make_gif_from_numpy(start_noise, end_noise, 256, netG, save_dir, iter_number)
 
-    if USE_NOISE_MORPHER:
-        for iter_nm in range(NM_ITERS):
-            train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE, noise_dim=NOISE_DIM)
+try:
+    for iteration in range(ITERS):
+        print("Param stats: {}".format(mean_stddev_network_parameters(netD)))
+        print("Grad stats: {}".format(mean_stddev_network_grads(netD)))
+        # clip_grad_norm(netD.parameters(), max_norm=10.0)
+        # print("Grad stats after clipping: {}".format(mean_stddev_network_grads(netD)))
 
-    train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE, noise_dim=NOISE_DIM)
-    if USE_NOISE_MORPHER:
-        log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter, noise_dim=NOISE_DIM)
-        log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)
+        for iter_d in range(CRITIC_ITERS):
+            _data = next(data)
+            train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter, noise_dim=NOISE_DIM)
 
-    if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
-        print("plotting iteration {}".format(iteration))
-        plotter.graph_all()
-        save_string = os.path.join(PIC_DIR, 'frames', 'samples_{}.png'.format(iteration))
-        generate_mnist_image(netG, save_string, BATCH_SIZE, NOISE_DIM)
-        continue
-        exit()
-        save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
-        generate_comparison_image(_data, netG, netD, save_string, batch_size=BATCH_SIZE, N_POINTS=128, RANGE=3)
-        save_string = os.path.join(PIC_DIR, "latent_space_contours/frame" + str(iteration) + ".jpg")
-        generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=128, RANGE=1)
         if USE_NOISE_MORPHER:
-            save_string = os.path.join(PIC_DIR, "noise_morpher_output/frame" + str(iteration) + ".jpg")
-            plot_noise_morpher_output(netNM, save_string, N_POINTS=50)
+            for iter_nm in range(NM_ITERS):
+                train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE, noise_dim=NOISE_DIM)
+
+        train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE, noise_dim=NOISE_DIM)
+        if USE_NOISE_MORPHER:
+            log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter, noise_dim=NOISE_DIM)
+            log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)
+
+        if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
+            print("plotting iteration {}".format(iteration))
+            plotter.graph_all()
+            save_string = os.path.join(PIC_DIR, 'frames', 'samples_{}.png'.format(iteration))
+            generate_mnist_image(netG, save_string, BATCH_SIZE, NOISE_DIM)
+
+            save_dir = os.path.join(PIC_DIR, "noise_morph_gif")
+            print("Writing to gif folder")
+            write_gif_folder(save_dir, iteration)
+
+            continue
+            exit()
+            save_string = os.path.join(PIC_DIR, "frames/frame" + str(iteration) + ".jpg")
+            generate_comparison_image(_data, netG, netD, save_string, batch_size=BATCH_SIZE, N_POINTS=128, RANGE=3)
+            save_string = os.path.join(PIC_DIR, "latent_space_contours/frame" + str(iteration) + ".jpg")
+            generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=128, RANGE=1)
+
+
+            if USE_NOISE_MORPHER:
+                save_string = os.path.join(PIC_DIR, "noise_morpher_output/frame" + str(iteration) + ".jpg")
+                plot_noise_morpher_output(netNM, save_string, N_POINTS=50)
+except KeyboardInterrupt as e:
+    pickle_function(PIC_DIR, netG, netD, netNM, plotter, iteration)

@@ -9,3 +9,5 @@ __pycache__
 this.jpg
 tmp*
 12_11_long_run_sam_tmp/*
+
+*.out
