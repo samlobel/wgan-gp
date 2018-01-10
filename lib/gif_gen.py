@@ -23,9 +23,8 @@ def smooth_transition_to_noise_vector(starting_noise, ending_noise, num_points):
 def make_gif_from_numpy(starting_noise, ending_noise, num_points, generator, gif_dir, iter_number):
     print("Making gif from numpy")
     noise_vectors = smooth_transition_to_noise_vector(starting_noise, ending_noise, num_points)
-    # noise_vectors_v = Variable(torch.from_numpy(noise_vectors))
-    noise_vectors_v = torch.from_numpy(noise_vectors)
-    # import ipdb; ipdb.set_trace()
+    noise_vectors_v = Variable(torch.from_numpy(noise_vectors))
+
     output_images = generator(noise_vectors_v.float()).data.numpy()
     frame_dir = os.path.join(gif_dir, 'frames')
     os.makedirs(frame_dir, exist_ok=True)
