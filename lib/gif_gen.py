@@ -41,7 +41,6 @@ def make_gif_from_numpy(starting_noise, ending_noise, num_points, generator, gif
     except FileNotFoundError:
         pass
     os.system("ffmpeg -i {} {} ".format(file_path, output_path))
-    return
     for f in os.listdir(frame_dir):
         if f.startswith('gif_frame_'):
             filename = os.path.join(frame_dir, f)
