@@ -50,7 +50,8 @@ defaults = {
     "noise_iters" : 5,
     "batch_size" : 50,
     "plotting_increment" : 10,
-    "lr" : 1e-4
+    "lr" : 1e-4,
+    "make_gifs" : True,
 }
 
 
@@ -62,6 +63,7 @@ parser.add_argument("--noise-iters", help="Number of Noise optimization steps fo
 parser.add_argument("--batch-size", help="Batch size for latent vectors", type=int, default=defaults['batch_size'])
 parser.add_argument("--plotting-increment", help="Number of iterations after which data is plotted", type=int, default=defaults['plotting_increment'])
 parser.add_argument("--learning-rate", help="Number of iterations after which data is plotted", type=float, default=defaults['lr'])
+parser.add_argument("--make-gifs", help="Whether to make GIFs or not. Defaults to True.", type=lambda x:bool(distutils.util.strtobool(x)), default=defaults["make_gifs"])
 
 
 args = parser.parse_args()
@@ -78,6 +80,7 @@ BATCH_SIZE = args.batch_size
 USE_NOISE_MORPHER=args.use_noise_morpher
 PLOTTING_INCREMENT = args.plotting_increment
 LR = args.learning_rate
+MAKE_GIFS = args.make_gifs
 
 USE_CUDA  = torch.cuda.is_available()
 print("USING CUDA: {}".format(USE_CUDA))
@@ -186,9 +189,10 @@ try:
             save_string = os.path.join(PIC_DIR, 'frames', 'samples_{}.png'.format(iteration))
             generate_mnist_image(netG, save_string, BATCH_SIZE, NOISE_DIM)
 
-            save_dir = os.path.join(PIC_DIR, "noise_morph_gif")
-            print("Writing to gif folder")
-            write_gif_folder(save_dir, iteration)
+            if MAKE_GIFS:
+                save_dir = os.path.join(PIC_DIR, "noise_morph_gif")
+                print("Writing to gif folder")
+                write_gif_folder(save_dir, iteration)
 
             continue
             exit()
