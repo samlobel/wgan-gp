@@ -50,8 +50,6 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
 
     No noise though. The noise is for hard-example-mining for the generator, else.
     """
-    if use_cuda:
-        data = data.cuda()
     batch_size = data.shape[0]
     # First, we only care about the Discriminator's D
     d_net.set_requires_grad(True)
@@ -60,6 +58,8 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
     d_net.zero_grad()
 
     real_data_v = autograd.Variable(torch.Tensor(data))
+    if use_cuda:
+        real_data_v = real_data_v.cuda()
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim, allow_gradient=False) #Do not need gradient for gen.
     if use_cuda:
         noisev = noisev.cuda()
