@@ -24,7 +24,7 @@ from models.discriminators import BasicMnistDiscriminator
 
 import torch.optim as optim
 from torch.nn.utils.clip_grad import clip_grad_norm
-
+import torch
 
 def pickle_function(base_dir, generator, discriminator, noise_morpher, plotter, iteration):
     if input("Would you like to pickle this round (y/n)? \n>>> ").lower() == "y":
@@ -79,6 +79,10 @@ USE_NOISE_MORPHER=args.use_noise_morpher
 PLOTTING_INCREMENT = args.plotting_increment
 LR = args.learning_rate
 
+USE_CUDA  = torch.cuda.is_available()
+print("USING CUDA: {}".format(USE_CUDA))
+
+
 PIC_DIR='sam_tmp/mnist'
 if USE_NOISE_MORPHER:
     PIC_DIR = os.path.join(PIC_DIR, "with_noise_morpher")
@@ -88,6 +92,7 @@ else:
 os.makedirs(PIC_DIR, exist_ok=True)
 
 arg_dict = vars(args) #How did I not know about this?!
+arg_dict['use_cuda'] = USE_CUDA
 with open(os.path.join(PIC_DIR, "args_serialized.json"), "w") as f:
     f.write(json.dumps(arg_dict, indent=4))
 
@@ -105,6 +110,12 @@ netD.apply(xavier_init)
 netG.apply(xavier_init)
 if USE_NOISE_MORPHER:
     netNM.apply(xavier_init)
+
+if USE_CUDA:
+    netD = netD.cuda()
+    netG = netG.cuda()
+    if USE_NOISE_MORPHER:
+        netNM = netNM.cuda()
 
 print(netG)
 print(netD)
@@ -129,20 +140,42 @@ def write_gif_folder(save_dir, iter_number):
 
 try:
     for iteration in range(ITERS):
-        print("Param stats: {}".format(mean_stddev_network_parameters(netD)))
-        print("Grad stats: {}".format(mean_stddev_network_grads(netD)))
-        # clip_grad_norm(netD.parameters(), max_norm=10.0)
-        # print("Grad stats after clipping: {}".format(mean_stddev_network_grads(netD)))
+        # try:
+        #     mean_gp, std_gp = mean_stddev_network_parameters(netG)
+        #     mean_gg, std_gg = mean_stddev_network_grads(netG)
+        #     mean_dp, std_dp = mean_stddev_network_parameters(netD)
+        #     mean_dg, std_dg = mean_stddev_network_grads(netD)
+        #     if USE_NOISE_MORPHER:
+        #         mean_nmp, std_nmp = mean_stddev_network_parameters(netNM)
+        #         mean_nmg, std_nmg = mean_stddev_network_grads(netNM)
+        #
+        #     plotter.add_point(graph_name="Network Statistics", value=mean_gp, bin_name="Gen Param Mean")
+        #     plotter.add_point(graph_name="Network Statistics", value=std_gp, bin_name="Gen Param Std")
+        #     plotter.add_point(graph_name="Network Statistics", value=mean_gg, bin_name="Gen Grad Mean")
+        #     plotter.add_point(graph_name="Network Statistics", value=std_gg, bin_name="Gen Grad Std")
+        #
+        #     plotter.add_point(graph_name="Network Statistics", value=mean_dp, bin_name="Disc Param Mean")
+        #     plotter.add_point(graph_name="Network Statistics", value=std_dp, bin_name="Disc Param Std")
+        #     plotter.add_point(graph_name="Network Statistics", value=mean_dg, bin_name="Disc Grad Mean")
+        #     plotter.add_point(graph_name="Network Statistics", value=std_dg, bin_name="Disc Grad Std")
+        #
+        #     if USE_NOISE_MORPHER:
+        #         plotter.add_point(graph_name="Network Statistics", value=mean_nmp, bin_name="NM Param Mean")
+        #         plotter.add_point(graph_name="Network Statistics", value=std_nmp, bin_name="NM Param Std")
+        #         plotter.add_point(graph_name="Network Statistics", value=mean_nmg, bin_name="NM Grad Mean")
+        #         plotter.add_point(graph_name="Network Statistics", value=std_nmg, bin_name="NM Grad Std")
+        # except:
+        #     pass
 
         for iter_d in range(CRITIC_ITERS):
             _data = next(data)
-            train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter, noise_dim=NOISE_DIM)
+            train_discriminator(netG, netD, _data, optimizerD, LAMBDA=LAMBDA, plotter=plotter, noise_dim=NOISE_DIM, use_cuda=USE_CUDA)
 
         if USE_NOISE_MORPHER:
             for iter_nm in range(NM_ITERS):
-                train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE, noise_dim=NOISE_DIM)
+                train_noise(netG, netD, netNM, optimizerNM, BATCH_SIZE, noise_dim=NOISE_DIM, use_cuda=USE_CUDA)
 
-        train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE, noise_dim=NOISE_DIM)
+        train_generator(netG, netD, netNM, optimizerG, BATCH_SIZE, noise_dim=NOISE_DIM, use_cuda=USE_CUDA)
         if USE_NOISE_MORPHER:
             log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter, noise_dim=NOISE_DIM)
             log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)

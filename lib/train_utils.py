@@ -39,7 +39,7 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     return gradient_penalty
 
 
-def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1, plotter=None, flatten=False):
+def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1, plotter=None, flatten=False, use_cuda=False):
     """
     Discriminator tries to mimic W-loss by approximating f(x). F(x) maximizes f(real) - f(fake).
     Meaning it tries to make f(real) big and f(fake) small.
@@ -50,6 +50,8 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
 
     No noise though. The noise is for hard-example-mining for the generator, else.
     """
+    if use_cuda:
+        data = data.cuda()
     batch_size = data.shape[0]
     # First, we only care about the Discriminator's D
     d_net.set_requires_grad(True)
@@ -59,6 +61,8 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
 
     real_data_v = autograd.Variable(torch.Tensor(data))
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim, allow_gradient=False) #Do not need gradient for gen.
+    if use_cuda:
+        noisev = noisev.cuda()
     fake_data_v = autograd.Variable(g_net(noisev).data) # I guess this is to cause some separation...
     # import ipdb; ipdb.set_trace()
 
@@ -84,7 +88,7 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
 
     d_optimizer.step()
 
-def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
+def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2, use_cuda=False):
     """
     WassF maximizes F(real) - F(fake), so it makes F(fake) as small as it can.
 
@@ -105,6 +109,8 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
     nm_net.zero_grad()
 
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
+    if use_cuda:
+        noisev = noisev.cuda()
     noise_morphed = nm_net(noisev)
 
     fake_from_morphed = g_net(noise_morphed)
@@ -116,7 +122,7 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2):
     nm_optimizer.step()
 
 
-def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2):
+def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2, use_cuda=False):
     # NM_NET might be None, in which case you just use the noise...
     # NOTE: I could include nm_net optionally...
     d_net.set_requires_grad(True) # I think this was my change but not sure...
@@ -130,12 +136,11 @@ def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2):
         nm_net.zero_grad()
 
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
+    if use_cuda:
+        noisev = noisev.cuda()
     noisev_np = noisev.data.numpy()
-    # print("noisev min/max from in gen: {}/{}".format(np.amin(noisev_np), np.amax(noisev_np)))
-    # print("NOISE V: {}".format(noisev.data.numpy()))
     if nm_net:
         noisev = nm_net(noisev)
-        # print("NOISE MORPHED: {}".format(noisev.data.numpy()))
     fake_data = g_net(noisev)
     d_fake = d_net(fake_data).mean()
     d_fake.backward(NEG_ONE) #MAKES SENSE... It's the opposite of d_fake.backwards in discriminator.

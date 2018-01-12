@@ -8,7 +8,7 @@ def mean_stddev_network_parameters(net):
     all_params = np.concatenate(all_params)
     mean, stddev = all_params.mean(), all_params.std()
     # print(mean, stddev)
-    return {"mean" : mean, "std" : stddev}
+    return mean, stddev
 
 def mean_stddev_network_grads(net):
     all_params = []
@@ -23,7 +23,7 @@ def mean_stddev_network_grads(net):
     all_params = np.concatenate(all_params)
     mean, stddev = all_params.mean(), all_params.std()
     # print(mean, stddev)
-    return {"mean" : mean, "std" : stddev}
+    return mean, stddev
 
 def mean_stddev_optimizer_parameters(opt):
     """Only tested on Adam"""
