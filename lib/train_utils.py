@@ -30,6 +30,8 @@ def calc_gradient_penalty(netD, real_data, fake_data, use_cuda=False):
 
     interpolates = alpha * real_data + ((1 - alpha) * fake_data)
     interpolates = autograd.Variable(interpolates, requires_grad=True)
+    if use_cuda:
+        interpolates = interpolates.cuda()
 
     disc_interpolates = netD(interpolates)
     gradients = autograd.grad(outputs=disc_interpolates, inputs=interpolates,
