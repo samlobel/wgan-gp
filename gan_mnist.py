@@ -84,6 +84,8 @@ MAKE_GIFS = args.make_gifs
 
 USE_CUDA  = torch.cuda.is_available()
 print("USING CUDA: {}".format(USE_CUDA))
+if USE_CUDA:
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
 PIC_DIR='sam_tmp/mnist'
