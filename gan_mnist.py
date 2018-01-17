@@ -7,6 +7,13 @@ import distutils.util
 import pickle
 import numpy as np
 
+import torch
+USE_CUDA  = torch.cuda.is_available()
+print("USING CUDA: {}".format(USE_CUDA))
+if USE_CUDA:
+    torch.set_default_tensor_type('torch.cuda.FloatTensor')
+
+
 from lib.utils import weights_init, xavier_init
 from lib.train_utils import train_discriminator, train_noise, train_generator
 from lib.noise_generators import create_generator_noise_uniform
@@ -24,7 +31,6 @@ from models.discriminators import BasicMnistDiscriminator
 
 import torch.optim as optim
 from torch.nn.utils.clip_grad import clip_grad_norm
-import torch
 
 def pickle_function(base_dir, generator, discriminator, noise_morpher, plotter, iteration):
     if input("Would you like to pickle this round (y/n)? \n>>> ").lower() == "y":
@@ -82,10 +88,10 @@ PLOTTING_INCREMENT = args.plotting_increment
 LR = args.learning_rate
 MAKE_GIFS = args.make_gifs
 
-USE_CUDA  = torch.cuda.is_available()
-print("USING CUDA: {}".format(USE_CUDA))
-if USE_CUDA:
-    torch.set_default_tensor_type('torch.cuda.FloatTensor')
+# USE_CUDA  = torch.cuda.is_available()
+# print("USING CUDA: {}".format(USE_CUDA))
+# if USE_CUDA:
+#     torch.set_default_tensor_type('torch.cuda.FloatTensor')
 
 
 PIC_DIR='sam_tmp/mnist'
