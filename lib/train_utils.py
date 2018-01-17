@@ -14,6 +14,7 @@ from torch.nn.utils.clip_grad import clip_grad_norm
 def calc_gradient_penalty(netD, real_data, fake_data):
     """NOTE: This is done much differently than his. He uses gradients in the shape of inputs, but
     I flatten it before taking the norm. I think mine is right, but I can't be sure. Posting in a forum.
+    TODO: I NEED TO MAKE THIS CUDA DEPENDENT!!!
     """
     batch_size = real_data.size()[0]
     num_dims = len(real_data.size())
@@ -50,6 +51,12 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
 
     No noise though. The noise is for hard-example-mining for the generator, else.
     """
+    ONE = torch.FloatTensor([1])
+    NEG_ONE = ONE * -1
+    if use_cuda:
+        ONE = ONE.cuda()
+        NEG_ONE = NEG_ONE.cuda()
+
     batch_size = data.shape[0]
     # First, we only care about the Discriminator's D
     d_net.set_requires_grad(True)
@@ -99,6 +106,11 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2, use
     If I were to log this, I would log D_noise - D_morphed, and try and make it as big as I could.
 
     """
+    ONE = torch.FloatTensor([1])
+    NEG_ONE = ONE * -1
+    if use_cuda:
+        ONE = ONE.cuda()
+        NEG_ONE = NEG_ONE.cuda()
 
     # d_net.set_requires_grad(False)
     d_net.set_requires_grad(True)
@@ -125,6 +137,12 @@ def train_noise(g_net, d_net, nm_net, nm_optimizer, batch_size, noise_dim=2, use
 def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2, use_cuda=False):
     # NM_NET might be None, in which case you just use the noise...
     # NOTE: I could include nm_net optionally...
+    ONE = torch.FloatTensor([1])
+    NEG_ONE = ONE * -1
+    if use_cuda:
+        ONE = ONE.cuda()
+        NEG_ONE = NEG_ONE.cuda()
+
     d_net.set_requires_grad(True) # I think this was my change but not sure...
     g_net.set_requires_grad(True)
     if nm_net:

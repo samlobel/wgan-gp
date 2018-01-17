@@ -11,3 +11,5 @@ tmp*
 12_11_long_run_sam_tmp/*
 
 *.out
+
+gan_runner.py
