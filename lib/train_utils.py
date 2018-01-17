@@ -5,13 +5,13 @@ torch.manual_seed(1)
 
 from .noise_generators import create_generator_noise_uniform
 
-ONE = torch.FloatTensor([1])
-NEG_ONE = ONE * -1
+# ONE = torch.FloatTensor([1])
+# NEG_ONE = ONE * -1
 
 from torch.nn.utils.clip_grad import clip_grad_norm
 
 
-def calc_gradient_penalty(netD, real_data, fake_data):
+def calc_gradient_penalty(netD, real_data, fake_data, use_cuda=False):
     """NOTE: This is done much differently than his. He uses gradients in the shape of inputs, but
     I flatten it before taking the norm. I think mine is right, but I can't be sure. Posting in a forum.
     TODO: I NEED TO MAKE THIS CUDA DEPENDENT!!!
@@ -20,6 +20,8 @@ def calc_gradient_penalty(netD, real_data, fake_data):
     num_dims = len(real_data.size())
     # print("batch size for calc_gradient_penalty is: {}".format(batch_size))
     alpha = torch.rand(batch_size, *[1 for i in range(num_dims - 1)])
+    if use_cuda:
+        alpha = alpha.cuda()
     # alpha = torch.rand(batch_size, 1, 1, 1)
     # import ipdb; ipdb.set_trace()
 
