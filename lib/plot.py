@@ -97,7 +97,7 @@ def generate_contour_of_latent_vector_space(netG, netD, save_string, N_POINTS=12
 
     points_v = autograd.Variable(torch.Tensor(points), volatile=True)
     samples = netG(points_v)
-    d_samples = netD(samples).data.numpy()
+    d_samples = netD(samples).data.cpu().numpy()
 
     x = y = np.linspace(-RANGE, RANGE, N_POINTS)
 
@@ -118,12 +118,12 @@ def generate_comparison_image(true_dist, netG, netD, save_string, batch_size=128
 
     points_v = autograd.Variable(torch.Tensor(points), volatile=True)
 
-    disc_map = netD(points_v).data.numpy()
+    disc_map = netD(points_v).data.cpu().numpy()
 
     # noise = torch.randn(batch_size, 2)
     noisev = create_generator_noise_uniform(batch_size, allow_gradient=False)
 
-    samples = netG(noisev).cpu().data.numpy()
+    samples = netG(noisev).cpu().data.cpu().numpy()
 
     x = y = np.linspace(-RANGE, RANGE, N_POINTS)
     reshaped_disc_map = disc_map.reshape(len(x), len(y)).transpose() #TODO: why the transpose??? Probably has to do with the other reshape...
@@ -145,7 +145,7 @@ def plot_noise_morpher_output(netNM, save_string, N_POINTS=128):
     points = points.reshape((-1, 2))
     points_v = autograd.Variable(torch.Tensor(points), volatile=True)
 
-    noise_morphed = netNM(points_v).data.numpy()
+    noise_morphed = netNM(points_v).data.cpu().numpy()
     x_n = noise_morphed[0,:]
     y_n = noise_morphed[1,:]
 
@@ -171,14 +171,14 @@ def log_difference_in_morphed_vs_regular(g_net, d_net, nm_net, batch_size, plott
 
     diff = d_noise - d_morphed # Is it good or bad if this is positive?
 
-    plotter.add_point(graph_name="real vs noise morphed dist", value=d_noise.data.numpy()[0], bin_name="Straight Noise")
-    plotter.add_point(graph_name="real vs noise morphed dist", value=d_morphed.data.numpy()[0], bin_name="Transformed Noise")
-    plotter.add_point(graph_name="real vs morphed noise disc cost diff", value=diff.data.numpy()[0], bin_name="Cost Diff (Big means it works)")
+    plotter.add_point(graph_name="real vs noise morphed dist", value=d_noise.data.cpu().numpy()[0], bin_name="Straight Noise")
+    plotter.add_point(graph_name="real vs noise morphed dist", value=d_morphed.data.cpu().numpy()[0], bin_name="Transformed Noise")
+    plotter.add_point(graph_name="real vs morphed noise disc cost diff", value=diff.data.cpu().numpy()[0], bin_name="Cost Diff (Big means it works)")
 
 
 def log_size_of_morph(nm_net, noise_gen_func, batch_size, plotter):
     noise = noise_gen_func(batch_size)
-    morphing_amount = nm_net.main(noise).data.numpy()
+    morphing_amount = nm_net.main(noise).data.cpu().numpy()
     av_morphing_amount = (morphing_amount ** 2).mean()
     plotter.add_point(graph_name="average distance in each direction NoiseMorpher moves", value=av_morphing_amount, bin_name="Distance Noise Moves In Each Direction")
 
@@ -188,7 +188,7 @@ def generate_mnist_image(netG, save_string, batch_size, noise_dim):
     samples = netG(noisev)
     samples = samples.view(batch_size, 28, 28)
 
-    samples = samples.cpu().data.numpy()
+    samples = samples.cpu().data.cpu().numpy()
 
     # print(samples)
 

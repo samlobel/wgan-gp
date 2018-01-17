@@ -118,10 +118,10 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         """
         Morphs the noise, multiplies it by its scaling
         """
-        input_np = inputs.data.numpy()
+        input_np = inputs.data.cpu().numpy()
         # print("input min/max: {}/{}".format(np.amin(input_np), np.amax(input_np)))
 
-        wall_dist = distance_to_closest_wall_per_dimension(inputs.data.numpy())
+        wall_dist = distance_to_closest_wall_per_dimension(inputs.data.cpu().numpy())
         wall_dist_v = autograd.Variable(torch.from_numpy(wall_dist), requires_grad=False)
 
         output = self.main(inputs)
@@ -131,8 +131,8 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         return to_return #comment this line out for logging...
 
         # LOGGING...
-        to_return_np = to_return.data.numpy()
-        output_np = output.data.numpy()
+        to_return_np = to_return.data.cpu().numpy()
+        output_np = output.data.cpu().numpy()
         print("output min/max: {}/{}".format(np.amin(output_np), np.amax(output_np)))
         print("output mean/stddev: {}/{}".format(output_np.mean(), output_np.std()))
         # print("to_return min/max: {}/{}".format(np.amin(to_return_np), np.amax(to_return_np)))

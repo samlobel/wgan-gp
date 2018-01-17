@@ -94,9 +94,9 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
     d_wasserstein = d_real - d_fake
     d_total_cost = d_fake - d_real + scaled_grad_penalty
 
-    plotter.add_point(graph_name="Grad Penalty", value=scaled_grad_penalty.data.numpy()[0], bin_name="Grad Distance from 1 or -1")
-    plotter.add_point(graph_name="Wasserstein Distance", value=d_wasserstein.data.numpy()[0], bin_name="Wasserstein Distance")
-    plotter.add_point(graph_name="Discriminator Cost", value=d_total_cost.data.numpy()[0], bin_name="Total D Cost")
+    plotter.add_point(graph_name="Grad Penalty", value=scaled_grad_penalty.data.cpu().numpy()[0], bin_name="Grad Distance from 1 or -1")
+    plotter.add_point(graph_name="Wasserstein Distance", value=d_wasserstein.data.cpu().numpy()[0], bin_name="Wasserstein Distance")
+    plotter.add_point(graph_name="Discriminator Cost", value=d_total_cost.data.cpu().numpy()[0], bin_name="Total D Cost")
 
     d_optimizer.step()
 
@@ -161,7 +161,6 @@ def train_generator(g_net, d_net, nm_net, g_optimizer, batch_size, noise_dim=2, 
     noisev = create_generator_noise_uniform(batch_size, noise_dim=noise_dim)
     if use_cuda:
         noisev = noisev.cuda()
-    noisev_np = noisev.data.numpy()
     if nm_net:
         noisev = nm_net(noisev)
     fake_data = g_net(noisev)

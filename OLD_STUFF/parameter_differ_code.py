@@ -2,13 +2,13 @@ class ParameterDiffer(object):
     def __init__(self, network):
         network_params = []
         for p in network.parameters():
-            network_params.append(p.data.numpy().copy())
+            network_params.append(p.data.cpu().numpy().copy())
         self.network_params = network_params
 
     def get_difference(self, network):
         total_diff = 0.0
         for i, p in enumerate(network.parameters()):
-            p_np = p.data.numpy()
+            p_np = p.data.cpu().numpy()
             diff = self.network_params[i] - p_np
             scalar_diff = np.sum(diff ** 2)
             total_diff += scalar_diff
