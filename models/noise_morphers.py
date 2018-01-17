@@ -118,11 +118,11 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         """
         Morphs the noise, multiplies it by its scaling
         """
-        input_np = inputs.data.cpu().numpy()
-        # print("input min/max: {}/{}".format(np.amin(input_np), np.amax(input_np)))
 
         wall_dist = distance_to_closest_wall_per_dimension(inputs.data.cpu().numpy())
         wall_dist_v = autograd.Variable(torch.from_numpy(wall_dist), requires_grad=False)
+        if getattr(self, 'use_cuda', False):
+            wall_dist_v = wall_dist_v.cuda()
 
         output = self.main(inputs)
         output = torch.mul(output, wall_dist_v)

@@ -119,6 +119,7 @@ if USE_CUDA:
     netG = netG.cuda()
     if USE_NOISE_MORPHER:
         netNM = netNM.cuda()
+        netNM.use_cuda = True
 
 print(netG)
 print(netD)
