@@ -84,7 +84,7 @@ def train_discriminator(g_net, d_net, data, d_optimizer, noise_dim=2, LAMBDA=0.1
     d_fake = d_net(fake_data_v).mean()
     d_fake.backward(ONE) #That makes it minimize!
 
-    gradient_penalty = calc_gradient_penalty(d_net, real_data_v.data, fake_data_v.data)
+    gradient_penalty = calc_gradient_penalty(d_net, real_data_v.data, fake_data_v.data, use_cuda=use_cuda)
     scaled_grad_penalty = LAMBDA * gradient_penalty
     scaled_grad_penalty.backward(ONE) #That makes it minimize!
 
