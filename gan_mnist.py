@@ -195,7 +195,7 @@ try:
             log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)
 
         time_taken_for_batch = time.time() - start_time
-        print("TIME TAKEN PER BATCH_SIZE: {}".format(time_taken_for_batch / BATCH_SIZE))
+        print("MILLISECONDS TAKEN PER BATCH_SIZE: {}".format(1000 * time_taken_for_batch / BATCH_SIZE))
         if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
             print("plotting iteration {}".format(iteration))
             plotter.graph_all()
