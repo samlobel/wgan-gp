@@ -6,6 +6,7 @@ import distutils
 import distutils.util
 import pickle
 import numpy as np
+import time
 
 import torch
 USE_CUDA  = torch.cuda.is_available()
@@ -152,6 +153,7 @@ def write_gif_folder(save_dir, iter_number):
 
 try:
     for iteration in range(ITERS):
+        start_time = time.time()
         # try:
         #     mean_gp, std_gp = mean_stddev_network_parameters(netG)
         #     mean_gg, std_gg = mean_stddev_network_grads(netG)
@@ -192,6 +194,8 @@ try:
             log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter, noise_dim=NOISE_DIM)
             log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)
 
+        time_taken_for_batch = time.time() - start_time
+        print("TIME TAKEN PER BATCH_SIZE: {}".format(time_taken_for_batch / BATCH_SIZE))
         if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
             print("plotting iteration {}".format(iteration))
             plotter.graph_all()
