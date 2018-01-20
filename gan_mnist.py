@@ -58,6 +58,8 @@ defaults = {
     "plotting_increment" : 10,
     "lr" : 1e-4,
     "make_gifs" : True,
+    "noise_scaling" : 1.0,
+    "noise_bound" : 1.0,
 }
 
 
@@ -66,6 +68,8 @@ parser.add_argument("--use-noise-morpher", help="Whether to use noise-morphing o
 parser.add_argument("--grad-lambda", help="Scaling for gradient penalty", type=float, default=defaults['lambda'])
 parser.add_argument("--critic-iters", help="Number of Critic optimization steps for every generator step", type=int, default=defaults['critic_iters'])
 parser.add_argument("--noise-iters", help="Number of Noise optimization steps for every generator step", type=int, default=defaults['noise_iters'])
+parser.add_argument("--noise-scaling", help="How much to scale the noise by. Value between zero and one. Zero is like not having a noise-morpher, one means everything could possibly be shunted to the corners.", type=float, default=defaults["noise_scaling"])
+parser.add_argument("--noise-bound", help="How much to bound the noise by. Value between zero and one. Takes place AFTER noise-scaling.", type=float, default=defaults["noise_bound"])
 parser.add_argument("--batch-size", help="Batch size for latent vectors", type=int, default=defaults['batch_size'])
 parser.add_argument("--plotting-increment", help="Number of iterations after which data is plotted", type=int, default=defaults['plotting_increment'])
 parser.add_argument("--learning-rate", help="Number of iterations after which data is plotted", type=float, default=defaults['lr'])
@@ -87,6 +91,8 @@ USE_NOISE_MORPHER=args.use_noise_morpher
 PLOTTING_INCREMENT = args.plotting_increment
 LR = args.learning_rate
 MAKE_GIFS = args.make_gifs
+NOISE_SCALING = args.noise_scaling
+NOISE_BOUND = args.noise_bound
 
 # USE_CUDA  = torch.cuda.is_available()
 # print("USING CUDA: {}".format(USE_CUDA))
@@ -111,7 +117,11 @@ plotter = MultiGraphPlotter(PIC_DIR)
 
 netG = BasicMnistGenerator()
 netD = BasicMnistDiscriminator()
-netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM, inner_dim=500, num_layers=4) if USE_NOISE_MORPHER else None
+netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM,
+                                       inner_dim=500,
+                                       num_layers=3,
+                                       noise_scaling=NOISE_SCALING,
+                                       noise_bound=NOISE_BOUND) if USE_NOISE_MORPHER else None
 
 netD.apply(weights_init)
 netG.apply(weights_init)
@@ -145,7 +155,7 @@ data = mnist_iterator(BATCH_SIZE)
 
 
 def write_gif_folder(save_dir, iter_number):
-    print("W")
+    print("Writing to gif folder")
     start_noise = -1 * np.ones(NOISE_DIM, dtype=np.float32)
     end_noise = np.ones(NOISE_DIM, dtype=np.float32)
     make_gif_from_numpy(start_noise, end_noise, 256, netG, save_dir, iter_number)

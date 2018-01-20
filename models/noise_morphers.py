@@ -10,18 +10,6 @@ from .base import ModulePlus
 torch.manual_seed(1)
 
 
-def distance_to_closest_wall(inputs, bound=1.0):
-    """If one dim is 0.1 from a wall, and one is 0.4, this returns
-    0.1, 0.1."""
-    num_dims = inputs.shape[1]
-    dist_to_pos_side = np.abs(inputs - bound)
-    dist_to_neg_side = np.abs(inputs + bound)
-    smaller_of_two = np.minimum(dist_to_pos_side, dist_to_neg_side)
-    smallest_of_two = np.amin(smaller_of_two, axis=1)
-    smallest_of_two = np.expand_dims(smallest_of_two, axis=1)
-    wall_dist = np.tile(smallest_of_two, (1, num_dims))
-    return wall_dist
-
 def distance_to_closest_wall_per_dimension(inputs, bound=1.0):
     """This returns the distance to the closest wall, for every dimension,
     for every batch-elem. [[-0.8, 0.3], [0.9, -0.2]] would return
@@ -97,12 +85,19 @@ class SoftSignNoiseMorpher(ModulePlus):
 
 class ComplicatedScalingNoiseMorpher(ModulePlus):
     """This one is supposed to figure out the distance to the walls and scale by it, to keep the bounds.
+       Also has scaling bound. With noise_scaling=0.1, at (0.9, 0.9) the noise could only morph
+       it by 0.01 in either direction. noise_bound takes place after noise_scaling, and determines
+       the max it can shift by in any direction.
     """
-    def __init__(self, noise_dim=2, inner_dim=50, num_layers=3):
+    def __init__(self, noise_dim=2, inner_dim=50, num_layers=3, noise_scaling=1.0, noise_bound=1.0):
         if num_layers < 2:
             raise Exception("Need at least 2 layers for this to work...")
+        if (noise_scaling < 0) or (noise_scaling > 1) or (noise_bound < 0) or (noise_bound > 1):
+            raise Exception("scaling-bound and noise-max both need to be between zero and one")
 
         super().__init__()
+        self.noise_scaling = noise_scaling
+        self.noise_bound = noise_bound
         sequence = [nn.Linear(noise_dim, inner_dim), nn.ReLU(True)]
         for i in range(num_layers - 2):
             sequence.append(nn.Linear(inner_dim, inner_dim))
@@ -120,9 +115,11 @@ class ComplicatedScalingNoiseMorpher(ModulePlus):
         """
 
         wall_dist = distance_to_closest_wall_per_dimension(inputs.data.cpu().numpy())
-        wall_dist_v = autograd.Variable(torch.from_numpy(wall_dist), requires_grad=False)
-        if getattr(self, 'use_cuda', False):
-            wall_dist_v = wall_dist_v.cuda()
+        wall_dist = wall_dist * self.noise_scaling
+        wall_dist = np.clip(wall_dist, -self.noise_bound, self.noise_bound)
+        wall_dist_v = autograd.Variable(torch.Tensor(wall_dist), requires_grad=False)
+        # if getattr(self, 'use_cuda', False): #Should be taken care of by set_default_tensor_type
+        #     wall_dist_v = wall_dist_v.cuda()
 
         output = self.main(inputs)
         output = torch.mul(output, wall_dist_v)
