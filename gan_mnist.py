@@ -146,10 +146,10 @@ print(netNM)
 # optimizerD = optim.Adam(netD.parameters(), lr=LR, betas=(0.5, 0.9))
 
 # optimizerD = optim.SGD(netD.parameters(), lr=0.001)
-optimizerD = optim.Adam(netD.parameters(), lr=LR, betas=(0.5, 0.9))
-optimizerG = optim.Adam(netG.parameters(), lr=LR, betas=(0.5, 0.9))
+optimizerD = optim.Adam(netD.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
+optimizerG = optim.Adam(netG.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
 if USE_NOISE_MORPHER:
-    optimizerNM = optim.Adam(netNM.parameters(), lr=LR, betas=(0.5, 0.9))#, weight_decay=1e-4)
+    optimizerNM = optim.Adam(netNM.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
 
 data = mnist_iterator(BATCH_SIZE)
 
