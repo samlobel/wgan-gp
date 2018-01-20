@@ -22,8 +22,7 @@ from lib.noise_generators import create_generator_noise_uniform
 from lib.data_iterators import mnist_iterator
 from lib.plot import (MultiGraphPlotter, generate_comparison_image,
                       generate_contour_of_latent_vector_space, plot_noise_morpher_output, generate_mnist_image)
-from lib.data_loggers import log_difference_in_morphed_vs_regular, log_size_of_morph
-from lib.param_measurers import mean_stddev_network_grads, mean_stddev_network_parameters
+from lib.data_loggers import log_difference_in_morphed_vs_regular, log_size_of_morph, log_network_statistics
 from lib.gif_gen import make_gif_from_numpy
 
 from models.noise_morphers import ComplicatedScalingNoiseMorpher
@@ -112,16 +111,16 @@ plotter = MultiGraphPlotter(PIC_DIR)
 
 netG = BasicMnistGenerator()
 netD = BasicMnistDiscriminator()
-netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM, inner_dim=300, num_layers=3) if USE_NOISE_MORPHER else None
+netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM, inner_dim=500, num_layers=4) if USE_NOISE_MORPHER else None
 
-# netD.apply(weights_init)
-# netG.apply(weights_init)
-# if USE_NOISE_MORPHER:
-#     netNM.apply(weights_init)
-netD.apply(xavier_init)
-netG.apply(xavier_init)
+netD.apply(weights_init)
+netG.apply(weights_init)
 if USE_NOISE_MORPHER:
-    netNM.apply(xavier_init)
+    netNM.apply(weights_init)
+# netD.apply(xavier_init)
+# netG.apply(xavier_init)
+# if USE_NOISE_MORPHER:
+#     netNM.apply(xavier_init)
 
 if USE_CUDA:
     netD = netD.cuda()
@@ -154,32 +153,6 @@ def write_gif_folder(save_dir, iter_number):
 try:
     for iteration in range(ITERS):
         start_time = time.time()
-        # try:
-        #     mean_gp, std_gp = mean_stddev_network_parameters(netG)
-        #     mean_gg, std_gg = mean_stddev_network_grads(netG)
-        #     mean_dp, std_dp = mean_stddev_network_parameters(netD)
-        #     mean_dg, std_dg = mean_stddev_network_grads(netD)
-        #     if USE_NOISE_MORPHER:
-        #         mean_nmp, std_nmp = mean_stddev_network_parameters(netNM)
-        #         mean_nmg, std_nmg = mean_stddev_network_grads(netNM)
-        #
-        #     plotter.add_point(graph_name="Network Statistics", value=mean_gp, bin_name="Gen Param Mean")
-        #     plotter.add_point(graph_name="Network Statistics", value=std_gp, bin_name="Gen Param Std")
-        #     plotter.add_point(graph_name="Network Statistics", value=mean_gg, bin_name="Gen Grad Mean")
-        #     plotter.add_point(graph_name="Network Statistics", value=std_gg, bin_name="Gen Grad Std")
-        #
-        #     plotter.add_point(graph_name="Network Statistics", value=mean_dp, bin_name="Disc Param Mean")
-        #     plotter.add_point(graph_name="Network Statistics", value=std_dp, bin_name="Disc Param Std")
-        #     plotter.add_point(graph_name="Network Statistics", value=mean_dg, bin_name="Disc Grad Mean")
-        #     plotter.add_point(graph_name="Network Statistics", value=std_dg, bin_name="Disc Grad Std")
-        #
-        #     if USE_NOISE_MORPHER:
-        #         plotter.add_point(graph_name="Network Statistics", value=mean_nmp, bin_name="NM Param Mean")
-        #         plotter.add_point(graph_name="Network Statistics", value=std_nmp, bin_name="NM Param Std")
-        #         plotter.add_point(graph_name="Network Statistics", value=mean_nmg, bin_name="NM Grad Mean")
-        #         plotter.add_point(graph_name="Network Statistics", value=std_nmg, bin_name="NM Grad Std")
-        # except:
-        #     pass
 
         for iter_d in range(CRITIC_ITERS):
             _data = next(data)
@@ -194,9 +167,14 @@ try:
             log_difference_in_morphed_vs_regular(netG, netD, netNM, BATCH_SIZE, plotter=plotter, noise_dim=NOISE_DIM)
             log_size_of_morph(netNM, create_generator_noise_uniform, BATCH_SIZE, plotter, noise_dim=NOISE_DIM)
 
+        # log_network_statistics(netG, plotter, "Gen")
+        # log_network_statistics(netD, plotter, "Disc")
+        if USE_NOISE_MORPHER:
+            log_network_statistics(netNM, plotter, "NM")
+
         time_taken_for_batch = time.time() - start_time
-        print("MILLISECONDS TAKEN PER BATCH_SIZE: {}".format(1000 * time_taken_for_batch / BATCH_SIZE))
         if iteration % PLOTTING_INCREMENT == 0 and iteration != 0:
+            print("MILLISECONDS TAKEN PER BATCH_SIZE: {}".format(1000 * time_taken_for_batch / BATCH_SIZE))
             print("plotting iteration {}".format(iteration))
             plotter.graph_all()
             save_string = os.path.join(PIC_DIR, 'frames', 'samples_{}.png'.format(iteration))

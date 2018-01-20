@@ -53,13 +53,14 @@ def mnist_iterator(BATCH_SIZE, num_batches=0):
                            transforms.Lambda(to_default_tensor),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-        batch_size=BATCH_SIZE, shuffle=True)
+        batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=using_cuda)
     test_loader = torch.utils.data.DataLoader(
         datasets.MNIST('../data', train=False, transform=transforms.Compose([
                            transforms.ToTensor(),
+                           transforms.Lambda(to_default_tensor),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
-    batch_size=BATCH_SIZE, shuffle=True)
+    batch_size=BATCH_SIZE, shuffle=True, num_workers=1, pin_memory=using_cuda)
 
     def yield_mnist():
         for data, _ in train_loader:
