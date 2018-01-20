@@ -3,6 +3,8 @@ import random
 import torch
 from torchvision import datasets, transforms
 
+def to_default_tensor(t):
+    return torch.Tensor(t)
 
 def eight_gaussians(BATCH_SIZE, radius=2.0, stddev=0.02, num_batches=0):
     """
@@ -45,6 +47,7 @@ def mnist_iterator(BATCH_SIZE, num_batches=0):
         datasets.MNIST('../data', train=True, download=True,
                        transform=transforms.Compose([
                            transforms.ToTensor(),
+                           transforms.Lambda(to_default_tensor),
                            transforms.Normalize((0.1307,), (0.3081,))
                        ])),
         batch_size=BATCH_SIZE, shuffle=True)
