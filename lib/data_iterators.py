@@ -3,8 +3,11 @@ import random
 import torch
 from torchvision import datasets, transforms
 
+using_cuda  = torch.cuda.is_available()
+print("FROM DATA ITERATOR: USING CUDA: {}".format(using_cuda))
+
 def to_default_tensor(t):
-    return torch.Tensor(t)
+    return t.cuda() if using_cuda else t
 
 def eight_gaussians(BATCH_SIZE, radius=2.0, stddev=0.02, num_batches=0):
     """
