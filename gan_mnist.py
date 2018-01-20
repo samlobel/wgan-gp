@@ -146,8 +146,8 @@ data = mnist_iterator(BATCH_SIZE)
 
 def write_gif_folder(save_dir, iter_number):
     print("W")
-    start_noise = -1 * np.ones(NOISE_DIM)
-    end_noise = np.ones(NOISE_DIM)
+    start_noise = -1 * np.ones(NOISE_DIM, dtype=np.float32)
+    end_noise = np.ones(NOISE_DIM, dtype=np.float32)
     make_gif_from_numpy(start_noise, end_noise, 256, netG, save_dir, iter_number)
 
 try:
