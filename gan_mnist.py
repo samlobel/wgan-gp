@@ -32,22 +32,38 @@ from models.discriminators import BasicMnistDiscriminator
 import torch.optim as optim
 from torch.nn.utils.clip_grad import clip_grad_norm
 
-def pickle_function(base_dir, generator, discriminator, noise_morpher, plotter, iteration):
-    if input("Would you like to pickle this round (y/n)? \n>>> ").lower() == "y":
-        print("Pickling.")
-        pickle_loc = input("Where you would like to store the pickled file? Path prefix is {} \n>>> ".format(base_dir))
-        to_pickle = {
-            "generator" : generator,
-            "discriminator" : discriminator,
-            "noise_morpher" : noise_morpher,
-            "plotter" : plotter,
-            "iteration" : iteration
-        }
-        pickle_loc = os.path.join(base_dir, pickle_loc)
-        with open(pickle_loc, 'wb') as f:
-            pickle.dump(to_pickle, f)
-    else:
-        print("Not pickling.")
+def save_state_of_program(base_dir, generator=None, discriminator=None, noise_morpher=None, arg_dict=None, plotter=None, iteration=0):
+    to_write = dict(arg_dict)
+    state_dir = os.path.join(base_dir, "exit_state")
+    os.makedirs(state_dir, exist_ok=True)
+    torch.save(generator, os.path.join(state_dir, "generator.pkl"))
+    torch.save(discriminator, os.path.join(state_dir, "discriminator.pkl"))
+    torch.save(noise_morpher, os.path.join(state_dir, "noise_morpher.pkl"))
+    if plotter:
+        with open(os.path.join(state_dir, "plotter.pkl"), "wb") as f:
+            pickle.dump(plotter, f)
+    with open(os.path.join(state_dir, "final_state.json"), "w") as f:
+        print("going to write...")
+        to_write["iteration"] = iteration
+        f.write(json.dumps(to_write))
+
+def load_state_of_program(base_dir):
+    """Takes in a path to the exit_state file. Returns two dictionaries, one that's the states, one that's the pickled objects. These state
+    objects will supercede the ones from the command line. Ideally, they would be superceded if something was actually psased in, and not
+    superceded if they were defaults, but I can't think of a way to do that."""
+    with open(os.path.join(base_dir, "final_state.json"), "r") as f:
+        state = json.loads(f.read())
+    models = {}
+    with open(os.path.join(base_dir, "plotter.pkl"), "rb") as f:
+        models["plotter"] = pickle.load(f)
+    models["generator"] = torch.load(os.path.join(base_dir, "generator.pkl"))
+    models["discriminator"] = torch.load(os.path.join(base_dir, "discriminator.pkl"))
+    try:
+        models["noise_morpher"] = torch.load(os.path.join(base_dir, "noise_morpher.pkl"))
+    except:
+        print("Probably just no noise-morpher. Passing.")
+    return state, models
+
 
 defaults = {
     "use_noise_morpher" : True,
@@ -60,6 +76,8 @@ defaults = {
     "make_gifs" : True,
     "noise_scaling" : 1.0,
     "noise_bound" : 1.0,
+    "load_path" : None,
+    "pic_dir" : "sam_tmp/mnist",
 }
 
 
@@ -74,33 +92,64 @@ parser.add_argument("--batch-size", help="Batch size for latent vectors", type=i
 parser.add_argument("--plotting-increment", help="Number of iterations after which data is plotted", type=int, default=defaults['plotting_increment'])
 parser.add_argument("--learning-rate", help="Number of iterations after which data is plotted", type=float, default=defaults['lr'])
 parser.add_argument("--make-gifs", help="Whether to make GIFs or not. Defaults to True.", type=lambda x:bool(distutils.util.strtobool(x)), default=defaults["make_gifs"])
-
+parser.add_argument("--load-path", help="If you want to load pickled networks, input the path to the folder with the pickles.", type=str, default=defaults["load_path"])
+parser.add_argument("--pic-dir", help="Where to save the everything. Must be valid path, should not end in /. ", type=str, default=defaults["pic_dir"])
 
 args = parser.parse_args()
+
+arg_dict = vars(args)
+arg_dict['use_cuda'] = USE_CUDA
+LOAD_PATH = arg_dict["load_path"]
+
+
+loaded_state, loaded_models = None, None
+if arg_dict.get("load_path", None):
+    loaded_state, loaded_models = load_state_of_program(arg_dict.get("load_path"))
+    arg_dict.update(loaded_state)
+    # We need to keep load_path at its old value, but only that one.
+    arg_dict["load_path"] = LOAD_PATH
+
 
 
 ITERS = 100000  # how many generator iterations to train for
 DIM = 512  # Model dimensionality
 NOISE_DIM = 128
 
-LAMBDA = args.grad_lambda # I was finding that the gradients were way too big usually, so I toned it down.
-CRITIC_ITERS = args.critic_iters  # How many critic iterations per generator iteration
-NM_ITERS = args.noise_iters
-BATCH_SIZE = args.batch_size
-USE_NOISE_MORPHER=args.use_noise_morpher
-PLOTTING_INCREMENT = args.plotting_increment
-LR = args.learning_rate
-MAKE_GIFS = args.make_gifs
-NOISE_SCALING = args.noise_scaling
-NOISE_BOUND = args.noise_bound
+LAMBDA = arg_dict["grad_lambda"] # I was finding that the gradients were way too big usually, so I toned it down.
+CRITIC_ITERS = arg_dict["critic_iters"]  # How many critic iterations per generator iteration
+NM_ITERS = arg_dict["noise_iters"]
+BATCH_SIZE = arg_dict["batch_size"]
+USE_NOISE_MORPHER=arg_dict["use_noise_morpher"]
+PLOTTING_INCREMENT = arg_dict["plotting_increment"]
+LR = arg_dict["learning_rate"]
+MAKE_GIFS = arg_dict["make_gifs"]
+NOISE_SCALING = arg_dict["noise_scaling"]
+NOISE_BOUND = arg_dict["noise_bound"]
+LOAD_PATH = arg_dict["load_path"]
+PIC_DIR = arg_dict["pic_dir"]
 
-# USE_CUDA  = torch.cuda.is_available()
-# print("USING CUDA: {}".format(USE_CUDA))
-# if USE_CUDA:
-#     torch.set_default_tensor_type('torch.cuda.FloatTensor')
+print("load path: {}".format(LOAD_PATH))
+# STARTING_ITERATION = 0
+STARTING_ITERATION = 0 if not loaded_state else loaded_state["iteration"]
+plotter = MultiGraphPlotter(PIC_DIR) if not loaded_models else loaded_models["plotter"]
+netG = BasicMnistGenerator() if not LOAD_PATH else loaded_models["generator"] # torch.load(os.path.join(LOAD_PATH, "generator.pkl"))
+netG.set_requires_grad(True)
+netD = BasicMnistDiscriminator() if not LOAD_PATH else loaded_models["discriminator"] # torch.load(os.path.join(LOAD_PATH, "discriminator.pkl"))
+netD.set_requires_grad(True)
+if USE_NOISE_MORPHER:
+    netNM = (ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM,
+                                           inner_dim=500,
+                                           num_layers=3,
+                                           noise_scaling=NOISE_SCALING,
+                                           noise_bound=NOISE_BOUND) if not LOAD_PATH else
+                                                loaded_models["noise_morpher"])
+    netNM.set_requires_grad(True)
+
+with open(os.path.join(PIC_DIR, "args_serialized.json"), "w") as f:
+    f.write(json.dumps(arg_dict, indent=4))
 
 
-PIC_DIR='sam_tmp/mnist'
+
 if USE_NOISE_MORPHER:
     PIC_DIR = os.path.join(PIC_DIR, "with_noise_morpher")
 else:
@@ -108,29 +157,16 @@ else:
 
 os.makedirs(PIC_DIR, exist_ok=True)
 
-arg_dict = vars(args) #How did I not know about this?!
-arg_dict['use_cuda'] = USE_CUDA
-with open(os.path.join(PIC_DIR, "args_serialized.json"), "w") as f:
-    f.write(json.dumps(arg_dict, indent=4))
 
-plotter = MultiGraphPlotter(PIC_DIR)
-
-netG = BasicMnistGenerator()
-netD = BasicMnistDiscriminator()
-netNM = ComplicatedScalingNoiseMorpher(noise_dim=NOISE_DIM,
-                                       inner_dim=500,
-                                       num_layers=3,
-                                       noise_scaling=NOISE_SCALING,
-                                       noise_bound=NOISE_BOUND) if USE_NOISE_MORPHER else None
-
-netD.apply(weights_init)
-netG.apply(weights_init)
-if USE_NOISE_MORPHER:
-    netNM.apply(weights_init)
-# netD.apply(xavier_init)
-# netG.apply(xavier_init)
-# if USE_NOISE_MORPHER:
-#     netNM.apply(xavier_init)
+if not LOAD_PATH:
+    netD.apply(weights_init)
+    netG.apply(weights_init)
+    if USE_NOISE_MORPHER:
+        netNM.apply(weights_init)
+    # netD.apply(xavier_init)
+    # netG.apply(xavier_init)
+    # if USE_NOISE_MORPHER:
+    #     netNM.apply(xavier_init)
 
 if USE_CUDA:
     netD = netD.cuda()
@@ -143,11 +179,9 @@ print(netG)
 print(netD)
 print(netNM)
 
-# optimizerD = optim.Adam(netD.parameters(), lr=LR, betas=(0.5, 0.9))
-
-# optimizerD = optim.SGD(netD.parameters(), lr=0.001)
 optimizerD = optim.Adam(netD.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
 optimizerG = optim.Adam(netG.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
+
 if USE_NOISE_MORPHER:
     optimizerNM = optim.Adam(netNM.parameters(), lr=LR, betas=(0.5, 0.9), weight_decay=1e-5)
 
@@ -161,7 +195,7 @@ def write_gif_folder(save_dir, iter_number):
     make_gif_from_numpy(start_noise, end_noise, 256, netG, save_dir, iter_number)
 
 try:
-    for iteration in range(ITERS):
+    for iteration in range(STARTING_ITERATION, ITERS):
         start_time = time.time()
 
         for iter_d in range(CRITIC_ITERS):
@@ -206,5 +240,6 @@ try:
             if USE_NOISE_MORPHER:
                 save_string = os.path.join(PIC_DIR, "noise_morpher_output/frame" + str(iteration) + ".jpg")
                 plot_noise_morpher_output(netNM, save_string, N_POINTS=50)
-except KeyboardInterrupt as e:
-    pickle_function(PIC_DIR, netG, netD, netNM, plotter, iteration)
+except BaseException as e:
+    print("Caught an exception. I'll write everything just to be safe.")
+    save_state_of_program(PIC_DIR, generator=netG, discriminator=netD, noise_morpher=netNM, plotter=plotter, iteration=iteration, arg_dict=arg_dict)

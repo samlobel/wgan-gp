@@ -25,8 +25,12 @@ An pytorch implementation of Paper "Improved Training of Wasserstein GANs".
 * I should pickle my logger and my models.
 * I should refactor so that I subclass a Runner model. That's always the best way of doing these things.
 
-# Where I left off:
-* I think I got the non-NM version to work, but not tested.
+## NEW TO DOS:
+* Write something that can load from a pickle. That's important for this, because that's the only way
+I'll be able to really use my results.
+* Use all 60,000 MNIST images. That's important to get better results of course.
+* Write something that creates 60,000 images.
+* Go through noise-training logic, make sure it's sound
 
 
 ## Justification for Working off of high-W noise
@@ -38,5 +42,4 @@ discriminator's line, but produces a strong negative result. For a WGAN, this is
 
 In a WGAN, the nubmer a critic assigns to a noise-point is roughly related to how far it is from being a good result.
 
-The hope is that by focusing on weak noise-vectors, it will better "fill in the gaps." My proof of this will be
-making a GIF of a noise-vector morphing transitioning from one side of the screen to the other, and seeing how it changes.
+The hope is that by focusing on weak noise-vectors, it will better "fill in the gaps." My proof of this will be making a GIF of a noise-vector morphing transitioning from one side of the screen to the other, and seeing how it changes.
